@@ -1,0 +1,10 @@
+# @package _global_
+loggers:
+  comet:
+    COMET_API_KEY: key # comet key,需要去comet申请
+    workspace: 'kouyt5'  # comet用户名
+    project_name: 'minst' # 项目名称
+    experiment_name: 'sgd_seed_0_test'
+  tensorboard:
+    name: "sgd"
+    save_dir: "tensorboard_log"
