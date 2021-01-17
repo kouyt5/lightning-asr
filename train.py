@@ -1,5 +1,6 @@
 from typing import List, Any, Dict
 
+from comet_ml import Experiment
 from exp_loggers import init_loggers
 import torch
 import pytorch_lightning as pl
@@ -16,6 +17,7 @@ from omegaconf import DictConfig, OmegaConf
 def get_pair(pred, true) -> (list, list):
     """
     获取两个预测标签和真实标签对应的list
+
     :param pred: 预测值
     :param true: 真是值
     :return: [pre_list, true_list]
@@ -31,6 +33,7 @@ class LightingModle(pl.LightningModule):
     def forward(self, x):
         """
         用于推理阶段
+
         :param x: 传入参数 N*1*28*28
         :return: lists 预测的原始值
         """
@@ -42,6 +45,7 @@ class LightingModle(pl.LightningModule):
     def configure_optimizers(self):
         """
         配置优化器
+
         :return: torch.optim
         """
         return torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=1e-3)
@@ -87,6 +91,7 @@ class LightingModle(pl.LightningModule):
     def validation_epoch_end(self, outputs: List[Any]) -> None:
         """
         验证一轮后调用，用于总结总的验证集效果
+
         :param outputs: 每一step的结果的列表
         :return: None
         """
@@ -103,9 +108,15 @@ class LightingModle(pl.LightningModule):
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """
         保存checkpoint后调用
-        :param checkpoint: 状态字典，
 
-        :return:
+        :param checkpoint: 状态字典
+
+        .. code-block:: python
+            字典keys = ['epoch', 'global_step', 'pytorch-lightning_version',
+            'callbacks', 'optimizer_states', 'lr_schedulers',
+            'state_dict', 'hparams_name', 'hyper_parameters']
+
+        :return: None
         """
         print(checkpoint.keys())
 
