@@ -1,6 +1,5 @@
 from typing import List, Any, Dict
-
-from comet_ml import Experiment
+from comet_ml import Experiment  # 必须引入，不然报错
 from exp_loggers import init_loggers
 import torch
 import pytorch_lightning as pl
@@ -8,27 +7,17 @@ import torchvision
 from torchvision import transforms
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
+import pytorch_lightning.metrics as metrics
 import os
-from sklearn import metrics
+# from sklearn import metrics
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from utils import get_mnist_pair
+import logging
+logger = logging.getLogger(__name__)
 
 
-def get_pair(pred, true) -> (list, list):
-    """
-    获取两个预测标签和真实标签对应的list
-
-    :param pred: 预测值
-    :param true: 真是值
-    :return: [pre_list, true_list]
-    """
-    y = torch.argmax(pred, dim=-1)
-    y_list = y.detach().cpu().numpy().tolist()
-    true_list = true.detach().cpu().numpy().tolist()
-    return y_list, true_list
-
-
-class LightingModle(pl.LightningModule):
+class LightingModule(pl.LightningModule):
 
     def forward(self, x):
         """
@@ -48,7 +37,11 @@ class LightingModle(pl.LightningModule):
 
         :return: torch.optim
         """
-        return torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=1e-3)
+        sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=1e-3)
+        adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=1e-3)
+        lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(adam_optim, T_0=20,
+                                                                           T_mult=1, last_epoch=-1)
+        return [adam_optim], [lr_schulder]
 
     def training_step(self, batch, batch_idx):
         """
@@ -59,32 +52,30 @@ class LightingModle(pl.LightningModule):
 
         :param batch: 包含每一batch的数据
         :param batch_idx: index
-        :return: torch.Tensor, 这表示loss, 或者一个字典, 但必须包含'loss' key
+        :return: loss: torch.Tensor, 或者一个字典, 但必须包含'loss' key
         """
         x, y = batch
         d = self.forward(x)  # N*10
         loss = self.loss(d, y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_acc', metrics.accuracy_score(*get_pair(d, y)),
+        self.log('train_acc', self.acc(d, y),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        for param in self.optimizers().param_groups:
-            self.log('lr', param['lr'])
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         d = self.forward(x)  # N*10
-        predit, true = get_pair(d, y)
+        predict, true = get_mnist_pair(d, y)
         val_loss = self.loss(d, y)
-        self.log('val_acc', metrics.accuracy_score(predit, true),
+        self.log('val_acc', self.acc(d, y),
                  on_epoch=True, prog_bar=True, logger=True)
         self.log('val_loss', val_loss,
                  on_epoch=True, prog_bar=False, logger=True)
         return {
             'val_loss': val_loss,
             'images': batch[0],
-            'val_acc': metrics.accuracy_score(predit, true),
-            'pred': predit,
+            'val_acc': self.acc(d, y),
+            'pred': predict,
             'true': true
         }
 
@@ -107,7 +98,7 @@ class LightingModle(pl.LightningModule):
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """
-        保存checkpoint后调用
+        保存checkpoint中调用，这里可以查看保存的字典
 
         :param checkpoint: 状态字典
 
@@ -118,10 +109,11 @@ class LightingModle(pl.LightningModule):
 
         :return: None
         """
-        print(checkpoint.keys())
+        logger.info(checkpoint.keys())
 
     def __init__(self, learning_rate=5e-3):
         super().__init__()
+        self.acc = metrics.Accuracy()
         self.learning_rate = learning_rate
         self.save_hyperparameters('learning_rate')
         self.loss = torch.nn.CrossEntropyLoss()
@@ -132,7 +124,7 @@ class LightingModle(pl.LightningModule):
             torch.nn.ReLU()
         )
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(28*28*16, 10),
+            torch.nn.Linear(28 * 28 * 16, 10),
             torch.nn.ReLU()
         )
 
@@ -145,18 +137,19 @@ def main(cfg: DictConfig):
     tran_cfg = cfg.get('train')
     logger_cfg = cfg.get('loggers')
     data_cfg = cfg.get('data')
-    checkpoint_callpoint = pl.callbacks.ModelCheckpoint(dirpath="checkpoints", monitor='val_loss',verbose=True,
-                                                        save_last=True, save_top_k=3,
-                                                        filename="minst-{epoch:02d}-{val_loss:.2f}")
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(dirpath="checkpoints", monitor='val_loss', verbose=True,
+                                                       save_last=True, save_top_k=3,
+                                                       filename="mnist-{epoch:02d}-{val_loss:.2f}")
+    lr_callback = pl.callbacks.LearningRateMonitor(logging_interval='step')
     loggers = init_loggers(cfg=logger_cfg)
     dataset = MNIST(data_cfg.get('path'), download=True, transform=transforms.ToTensor())
     mnist_test = MNIST(data_cfg.get('path'), train=False, download=True, transform=transforms.ToTensor())
     train_loader = DataLoader(dataset, batch_size=128, num_workers=6)
     test_loader = DataLoader(mnist_test, batch_size=128, shuffle=False, num_workers=6)
-    model = LightingModle()
+    model = LightingModule()
     trainer = pl.Trainer(gpus=1,
                          logger=loggers,
-                         callbacks=[checkpoint_callpoint],
+                         callbacks=[checkpoint_callback, lr_callback],
                          resume_from_checkpoint=tran_cfg.get('checkpoint'),
                          # auto_lr_find=True,
                          max_epochs=tran_cfg.get('total_epoch'))
@@ -166,4 +159,3 @@ def main(cfg: DictConfig):
 
 if __name__ == '__main__':
     main()
-

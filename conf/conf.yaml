@@ -4,5 +4,5 @@ defaults:
 data:
   path: "/home/chenc/PycharmProjects/dev_test"
 train:
-  total_epoch: 20
+  total_epoch: 40
   checkpoint: None # None或模型文件的位置
