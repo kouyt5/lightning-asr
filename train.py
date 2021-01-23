@@ -147,7 +147,14 @@ def main(cfg: DictConfig):
     train_loader = DataLoader(dataset, batch_size=128, num_workers=6)
     test_loader = DataLoader(mnist_test, batch_size=128, shuffle=False, num_workers=6)
     model = LightingModule()
-    trainer = pl.Trainer(gpus=1,
+    if tran_cfg.get('use_tpu'):  # 使用googleTPU训练
+        trainer = pl.Trainer(tpu_cores=8,
+                             logger=loggers,
+                             callbacks=[checkpoint_callback, lr_callback],
+                             resume_from_checkpoint=tran_cfg.get('checkpoint'),
+                             # auto_lr_find=True,
+                             max_epochs=tran_cfg.get('total_epoch'))
+    trainer = pl.Trainer(gpus=tran_cfg.get('gpus'),
                          logger=loggers,
                          callbacks=[checkpoint_callback, lr_callback],
                          resume_from_checkpoint=tran_cfg.get('checkpoint'),

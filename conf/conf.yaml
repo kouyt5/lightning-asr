@@ -2,7 +2,9 @@ defaults:
   - log: exp_logger # 用于实验参数记录，集成到tensorboard comet等
   - log: hypra_logger # hypra集成的python logger配置
 data:
-  path: "/home/chenc/PycharmProjects/dev_test"
+  path: "."
 train:
   total_epoch: 40
   checkpoint: None # None或模型文件的位置
+  use_tpu: false
+  gpus: 1
