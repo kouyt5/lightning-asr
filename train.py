@@ -37,11 +37,11 @@ class LightingModule(pl.LightningModule):
 
         :return: torch.optim
         """
-        sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=1e-3)
-        adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=1e-3)
-        lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(adam_optim, T_0=20,
-                                                                           T_mult=1, last_epoch=-1)
-        return [adam_optim], [lr_schulder]
+        sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(sgd_optim, T_0=5,
+                                                                           T_mult=2, last_epoch=-1)
+        return [sgd_optim], [lr_schulder]
 
     def training_step(self, batch, batch_idx):
         """
@@ -109,12 +109,14 @@ class LightingModule(pl.LightningModule):
 
         :return: None
         """
-        logger.info(checkpoint.keys())
+        # logger.info(checkpoint.keys())
+        pass
 
-    def __init__(self, learning_rate=5e-3):
+    def __init__(self, learning_rate=5e-3, weight_decay=1e-4):
         super().__init__()
         self.acc = metrics.Accuracy()
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
         self.save_hyperparameters('learning_rate')
         self.loss = torch.nn.CrossEntropyLoss()
         self.softmax = torch.nn.Softmax(dim=-1)
@@ -146,7 +148,8 @@ def main(cfg: DictConfig):
     mnist_test = MNIST(data_cfg.get('path'), train=False, download=True, transform=transforms.ToTensor())
     train_loader = DataLoader(dataset, batch_size=tran_cfg.get("train_batch_size"), num_workers=6)
     test_loader = DataLoader(mnist_test, batch_size=128, shuffle=False, num_workers=6)
-    model = LightingModule()
+    model = LightingModule(learning_rate=tran_cfg.get("learning_rate"),
+                           weight_decay=tran_cfg.get("weight_decay"))
     if tran_cfg.get('use_tpu'):  # 使用googleTPU训练
         trainer = pl.Trainer(tpu_cores=tran_cfg.get('tpu_core_num'),
                              logger=loggers,
