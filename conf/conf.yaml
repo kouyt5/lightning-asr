@@ -9,3 +9,4 @@ train:
   use_tpu: false
   gpus: 1
   tpu_core_num: 8
+  train_batch_size: 128

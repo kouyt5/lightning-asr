@@ -148,7 +148,7 @@ def main(cfg: DictConfig):
     test_loader = DataLoader(mnist_test, batch_size=128, shuffle=False, num_workers=6)
     model = LightingModule()
     if tran_cfg.get('use_tpu'):  # 使用googleTPU训练
-        trainer = pl.Trainer(tpu_cores=8,
+        trainer = pl.Trainer(tpu_cores=tran_cfg.get('tpu_core_num'),
                              logger=loggers,
                              callbacks=[checkpoint_callback, lr_callback],
                              resume_from_checkpoint=tran_cfg.get('checkpoint'),
