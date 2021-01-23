@@ -117,7 +117,7 @@ class LightingModule(pl.LightningModule):
         self.acc = metrics.Accuracy()
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.save_hyperparameters('learning_rate')
+        self.save_hyperparameters()
         self.loss = torch.nn.CrossEntropyLoss()
         self.softmax = torch.nn.Softmax(dim=-1)
         self.encoder = torch.nn.Sequential(
