@@ -153,6 +153,7 @@ def main(cfg: DictConfig):
                              callbacks=[checkpoint_callback, lr_callback],
                              resume_from_checkpoint=tran_cfg.get('checkpoint'),
                              # auto_lr_find=True,
+                             profiler="simple",
                              max_epochs=tran_cfg.get('total_epoch'))
     else:
         trainer = pl.Trainer(gpus=tran_cfg.get('gpus'),
@@ -160,6 +161,7 @@ def main(cfg: DictConfig):
                              callbacks=[checkpoint_callback, lr_callback],
                              resume_from_checkpoint=tran_cfg.get('checkpoint'),
                              # auto_lr_find=True,
+                             profiler="simple",
                              max_epochs=tran_cfg.get('total_epoch'))
     trainer.fit(model, train_loader, test_loader)
 

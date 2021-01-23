@@ -4,7 +4,7 @@ defaults:
 data:
   path: "."
 train:
-  total_epoch: 40
+  total_epoch: 20
   checkpoint: None # None或模型文件的位置
   use_tpu: false
   gpus: 1
