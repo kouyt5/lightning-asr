@@ -8,3 +8,4 @@ train:
   checkpoint: None # None或模型文件的位置
   use_tpu: false
   gpus: 1
+  tpu_core_num: 8
