@@ -144,7 +144,7 @@ def main(cfg: DictConfig):
     loggers = init_loggers(cfg=logger_cfg)
     dataset = MNIST(data_cfg.get('path'), download=True, transform=transforms.ToTensor())
     mnist_test = MNIST(data_cfg.get('path'), train=False, download=True, transform=transforms.ToTensor())
-    train_loader = DataLoader(dataset, batch_size=128, num_workers=6)
+    train_loader = DataLoader(dataset, batch_size=tran_cfg.get("train_batch_size"), num_workers=6)
     test_loader = DataLoader(mnist_test, batch_size=128, shuffle=False, num_workers=6)
     model = LightingModule()
     if tran_cfg.get('use_tpu'):  # 使用googleTPU训练
