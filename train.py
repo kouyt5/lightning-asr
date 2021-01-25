@@ -9,7 +9,6 @@ from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 import pytorch_lightning.metrics as metrics
 import os
-# from sklearn import metrics
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from utils import get_mnist_pair
@@ -156,6 +155,9 @@ def main(cfg: DictConfig):
                              callbacks=[checkpoint_callback, lr_callback],
                              resume_from_checkpoint=tran_cfg.get('checkpoint'),
                              # auto_lr_find=True,
+                             amp_level=tran_cfg.get('amp_level'),
+                             precision=tran_cfg.get('precision'),
+                             amp_backend=tran_cfg.get('amp_backend'),
                              profiler="simple",
                              max_epochs=tran_cfg.get('total_epoch'))
     else:
@@ -164,6 +166,9 @@ def main(cfg: DictConfig):
                              callbacks=[checkpoint_callback, lr_callback],
                              resume_from_checkpoint=tran_cfg.get('checkpoint'),
                              # auto_lr_find=True,
+                             amp_level=tran_cfg.get('amp_level'),
+                             precision=tran_cfg.get('precision'),
+                             amp_backend=tran_cfg.get('amp_backend'),
                              profiler="simple",
                              max_epochs=tran_cfg.get('total_epoch'))
     trainer.fit(model, train_loader, test_loader)

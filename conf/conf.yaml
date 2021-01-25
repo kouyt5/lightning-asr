@@ -12,3 +12,6 @@ train:
   train_batch_size: 128
   learning_rate: 5e-3
   weight_decay: 1e-4
+  amp_level: 'O2'
+  precision: 32
+  amp_backend: native
