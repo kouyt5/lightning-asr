@@ -140,3 +140,4 @@ MNIST
 outputs
 .idea
 tmp
+.vscode

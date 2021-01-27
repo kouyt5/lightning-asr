@@ -13,7 +13,8 @@ def init_loggers(cfg: DictConfig):
         api_key=comet_cfg.get('COMET_API_KEY'),
         workspace=comet_cfg.get('workspace'),
         project_name=comet_cfg.get('project_name'),  # Optional
-        experiment_name=comet_cfg.get('experiment_name')  # Optional
+        experiment_name=comet_cfg.get('experiment_name'),  # Optional
+        experiment_key=comet_cfg.get('experiment_key') # restore previous experiment
     )
     tensorboard_logger = TensorBoardLogger(
         save_dir=tensorboard_cfg.get("save_dir"),
