@@ -3,10 +3,9 @@ from comet_ml import Experiment  # 必须引入，不然报错
 from exp_loggers import init_loggers
 import torch
 import pytorch_lightning as pl
-import torchvision
 from data_module import LibriDataModule
 from torch.utils.data import DataLoader
-import pytorch_lightning.metrics as metrics
+from scheduler.cosine_annearing_with_warmup import CosineAnnealingWarmupRestarts
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -36,10 +35,16 @@ class LightingModule(pl.LightningModule):
         :return: torch.optim
         """
         sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(sgd_optim, T_0=5,
-                                                                           T_mult=2, last_epoch=-1)
-        return [sgd_optim], [lr_schulder]
+        # adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        # lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(sgd_optim, T_0=5,
+        #                                                                    T_mult=2, last_epoch=-1)
+        lr_schulder = CosineAnnealingWarmupRestarts(sgd_optim, first_cycle_steps=5000, cycle_mult=2,
+                                                    max_lr=self.learning_rate, min_lr=1e-3, warmup_steps=1000, gamma=0.5)
+        pack_schulder = {
+            'scheduler': lr_schulder,
+            'interval': 'step'
+        }
+        return [sgd_optim], [pack_schulder]
 
     def training_step(self, batch, batch_idx):
         """

@@ -3,8 +3,8 @@ loggers:
   comet:
     COMET_API_KEY: key # comet key,需要去comet申请
     workspace: 'kouyt5'  # comet用户名
-    project_name: 'minst' # 项目名称
-    experiment_name: 'sgd_cosT5_lr1e2_bs128_amp02-32native_gpu_agb2'
+    project_name: 'asr' # 项目名称
+    experiment_name: 'asr_lr1e-1_bs32_amp01-16_gpu1_coswarm'
     experiment_key: null  # '61a5eec751eb4ee39cc9b3677f019c7b'
   tensorboard:
     name: "sgd"

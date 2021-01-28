@@ -112,14 +112,14 @@ class LibriDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         self.train_datasets = MyAudioDataset(self.train_manifest, self.labels, mask=True)
-        self.dev_datasets = MyAudioDataset(self.dev_manifest, self.labels)
-        self.test_datasets = MyAudioDataset(self.dev_manifest, self.labels)
+        self.dev_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=40)
+        self.test_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=40)
 
     def train_dataloader(self):
-        return MyAudioLoader(self.train_datasets, batch_size=self.train_bs)
+        return MyAudioLoader(self.train_datasets, batch_size=self.train_bs, num_workers=6, pin_memory=True)
 
     def val_dataloader(self):
-        return MyAudioLoader(self.dev_datasets, batch_size=self.dev_bs)
+        return MyAudioLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=6, pin_memory=True)
 
     def test_dataloader(self):
         return MyAudioLoader(self.dev_datasets, batch_size=self.dev_bs)

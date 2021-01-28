@@ -3,7 +3,7 @@ defaults:
   - log: hypra_logger # hypra集成的python logger配置
 data:
   path: "/home/chenc/PycharmProjects/pytorch-lighting-template"
-  train_manifest: "/mnt/workspace/datasets/libri/dev_clean.json"
+  train_manifest: "/mnt/workspace/datasets/libri/train_clean_100.json"
   val_manifest: "/mnt/workspace/datasets/libri/dev_clean.json"
   labels: [" ","'","a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
