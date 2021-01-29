@@ -34,15 +34,21 @@ class LightingModule(pl.LightningModule):
 
         :return: torch.optim
         """
+        self.print('设置学习率' + str(self.learning_rate))
         sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         # adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         # lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(sgd_optim, T_0=5,
         #                                                                    T_mult=2, last_epoch=-1)
-        lr_schulder = CosineAnnealingWarmupRestarts(sgd_optim, first_cycle_steps=5000, cycle_mult=2,
-                                                    max_lr=self.learning_rate, min_lr=1e-3, warmup_steps=1000, gamma=0.5)
+        # lr_schulder = CosineAnnealingWarmupRestarts(sgd_optim, first_cycle_steps=5000, cycle_mult=2,
+        #                                             max_lr=self.learning_rate, min_lr=1e-3, warmup_steps=1000, gamma=0.5)
+        lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(sgd_optim, mode='min',
+                                                                 factor=0.2, patience=4,
+                                                                 threshold=1e-4, threshold_mode='rel',
+                                                                 min_lr=1e-4)
         pack_schulder = {
             'scheduler': lr_schulder,
-            'interval': 'step'
+            'interval': 'epoch',
+            'monitor': 'val_loss',
         }
         return [sgd_optim], [pack_schulder]
 
@@ -69,7 +75,6 @@ class LightingModule(pl.LightningModule):
         self.log('train_wer', self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
         if batch_idx%50 == 0:
-            logging.info(f"\n")
             logging.info("pred:"+str(self.decoder.decode(out)[0][0]))
             logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0]))
         return loss

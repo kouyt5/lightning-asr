@@ -41,7 +41,7 @@ class MyAudioDataset(Dataset):
 
         # F-T mask
         audio_f_mask = torchaudio.transforms.FrequencyMasking(freq_mask_param=27)
-        audio_t_mask = torchaudio.transforms.TimeMasking(time_mask_param=80)
+        audio_t_mask = torchaudio.transforms.TimeMasking(time_mask_param=100)
         if mask:
             y = audio_f_mask(y)
             y = audio_t_mask(y)
