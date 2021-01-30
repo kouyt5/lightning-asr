@@ -68,6 +68,7 @@ class LightingModule(pl.LightningModule):
         percents = batch[2]
         trans = batch[1]
         trans_lengths = batch[3]
+        print(input.device, percents.device)
         out = self.encoder(input, percents)
         t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
         loss = self.loss(out.transpose(0, 1),
