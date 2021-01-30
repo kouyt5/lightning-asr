@@ -126,7 +126,7 @@ class LibriDataModule(pl.LightningDataModule):
     
     def transfer_batch_to_device(self, batch, device):
         batch[0] = batch[0].to(device)
-        batch[1] = batch[1].to(device)
+        batch[2] = batch[2].to(device)
         return batch
 
 
