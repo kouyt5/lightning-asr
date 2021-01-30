@@ -123,6 +123,11 @@ class LibriDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         return MyAudioLoader(self.dev_datasets, batch_size=self.dev_bs)
+    
+    def transfer_batch_to_device(self, batch, device):
+        batch[0] = batch[0].to(device)
+        batch[1] = batch[1].to(device)
+        return batch
 
 
 @hydra.main(config_path='conf', config_name='conf')
