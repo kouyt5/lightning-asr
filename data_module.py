@@ -125,8 +125,8 @@ class LibriDataModule(pl.LightningDataModule):
         return MyAudioLoader(self.dev_datasets, batch_size=self.dev_bs)
     
     def transfer_batch_to_device(self, batch, device):
-        batch[0] = batch[0].to(device)
-        batch[2] = batch[2].to(device)
+        batch[0][0] = batch[0][0].to(device)
+        batch[0][2] = batch[0][2].to(device)
         return batch
 
 

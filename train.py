@@ -76,6 +76,7 @@ class LightingModule(pl.LightningModule):
         self.log('train_wer', self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
         if batch_idx%50 == 0:
+            print('\n')
             logging.info("pred:"+str(self.decoder.decode(out)[0][0]))
             logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0]))
         return loss
@@ -85,7 +86,6 @@ class LightingModule(pl.LightningModule):
         percents = batch[2]
         trans = batch[1]
         trans_lengths = batch[3]
-        print(input.device, percents.device)
         out = self.encoder(input, percents)
         t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
         loss = self.loss(out.transpose(0, 1),
