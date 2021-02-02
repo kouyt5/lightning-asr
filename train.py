@@ -45,7 +45,7 @@ class LightingModule(pl.LightningModule):
         #                                                          factor=0.2, patience=4,
         #                                                          threshold=1e-4, threshold_mode='rel',
         #                                                          min_lr=1e-4)
-        lr_schulder = torch.optim.lr_scheduler.ExponentialLR(sgd_optim, gamma=0.96)
+        lr_schulder = torch.optim.lr_scheduler.ExponentialLR(sgd_optim, gamma=0.98)
         pack_schulder = {
             'scheduler': lr_schulder,
             'interval': 'epoch',
@@ -70,8 +70,8 @@ class LightingModule(pl.LightningModule):
         trans_lengths = batch[3]
         out = self.encoder(input, percents)
         t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
-        loss = self.loss(out.transpose(0, 1),
-                         trans, t_lengths, trans_lengths)
+        loss = torch.mean(self.loss(out.transpose(0, 1),
+                         trans, t_lengths, trans_lengths))
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.log('train_wer', self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -88,8 +88,8 @@ class LightingModule(pl.LightningModule):
         trans_lengths = batch[3]
         out = self.encoder(input, percents)
         t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
-        loss = self.loss(out.transpose(0, 1),
-                         trans, t_lengths, trans_lengths)
+        loss = torch.mean(self.loss(out.transpose(0, 1),
+                         trans, t_lengths, trans_lengths))
         self.log('val_wer', self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
                  on_epoch=True, prog_bar=True, logger=True)
         self.log('val_loss', loss, on_epoch=True, prog_bar=True, logger=True)
@@ -143,7 +143,7 @@ class LightingModule(pl.LightningModule):
         self.labels = labels
         self.save_hyperparameters()
         self.wer = WER(vocabulary=self.labels)
-        self.loss = torch.nn.CTCLoss(blank=len(self.labels))  # 最后一个作为black
+        self.loss = torch.nn.CTCLoss(blank=len(self.labels), reduction='none')  # 最后一个作为black
         self.encoder = MyModel2(labels=self.labels)
         self.decoder = GreedyDecoder(labels=self.labels)
 

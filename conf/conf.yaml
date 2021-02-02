@@ -12,11 +12,11 @@ train:
   checkpoint: null # None或模型文件的位置
   gpus: 1
   tpu_core_num: null
-  train_batch_size: 16
-  dev_batch_size: 32
-  learning_rate: 1e-1
+  train_batch_size: 32
+  dev_batch_size: 16
+  learning_rate: 1e-2
   weight_decay: 1e-4
-  amp_level: "O2"
-  precision: 32
+  amp_level: "O1"
+  precision: 16
   amp_backend: native
   accelerator: ddp
