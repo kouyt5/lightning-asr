@@ -41,11 +41,11 @@ class LightingModule(pl.LightningModule):
         #                                                                    T_mult=2, last_epoch=-1)
         # lr_schulder = CosineAnnealingWarmupRestarts(sgd_optim, first_cycle_steps=5000, cycle_mult=2,
         #                                             max_lr=self.learning_rate, min_lr=1e-3, warmup_steps=1000, gamma=0.5)
-        # lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(sgd_optim, mode='min',
-        #                                                          factor=0.2, patience=4,
-        #                                                          threshold=1e-4, threshold_mode='rel',
-        #                                                          min_lr=1e-4)
-        lr_schulder = torch.optim.lr_scheduler.ExponentialLR(sgd_optim, gamma=0.98)
+        lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(sgd_optim, mode='min',
+                                                                 factor=0.1, patience=10,
+                                                                 threshold=1e-4, threshold_mode='rel',
+                                                                 min_lr=1e-4)
+        # lr_schulder = torch.optim.lr_scheduler.ExponentialLR(sgd_optim, gamma=0.97)
         pack_schulder = {
             'scheduler': lr_schulder,
             'interval': 'epoch',

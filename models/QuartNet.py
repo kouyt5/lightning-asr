@@ -126,6 +126,43 @@ class QuartNet(nn.Module):
         return x
 
 
+class QuartNet12(nn.Module):
+    def __init__(self):
+        super(QuartNet12, self).__init__()
+        self.first_cnn = nn.Sequential(
+            nn.Conv1d(64, 256, kernel_size=33, stride=2,
+                      padding=16),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+        )
+        self.block1 = QuartNetBlock(repeat=3, in_ch=256, out_ch=256, k=33)
+        # self.block12 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=33) # add layer
+        self.block2 = QuartNetBlock(repeat=3, in_ch=256, out_ch=256, k=39)
+        # self.block22 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=39) # add layer
+        self.block3 = QuartNetBlock(repeat=3, in_ch=256, out_ch=512, k=51)
+        self.block4 = QuartNetBlock(repeat=3, in_ch=512, out_ch=512, k=63)
+        self.block5 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=75)
+        self.last_cnn2 = nn.Sequential(
+            nn.Conv1d(512, 1024, kernel_size=1, stride=1),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+        )
+
+    def forward(self, input, percents):
+        # x = input.view(input.size(0),input.size(2),input.size(3))
+        x = input.squeeze(dim=1).contiguous()
+        x = self.first_cnn(x)
+        x = self.block1(x, percents)
+        # x = self.block12(x,percents)
+        x = self.block2(x, percents)
+        # x = self.block22(x,percents)
+        x = self.block3(x, percents)
+        x = self.block4(x, percents)
+        x = self.block5(x, percents)
+        # x = self.last_cnn(x, percents)
+        x = self.last_cnn2(x)
+        return x
+
 class BatchLSTM(nn.Module):
     def __init__(self, in_ch=64, out_ch=512,
                  batch_f=True, bidirection=True):
@@ -169,7 +206,7 @@ class MyModel2(nn.Module):
         super(MyModel2, self).__init__()
         # self.maskcnn = MaskCNN()
         self.labels = labels
-        self.cnn = QuartNet()
+        self.cnn = QuartNet12()
         self.last_cnn3 = nn.Sequential(
             nn.Conv1d(1024, len(self.labels)+1, kernel_size=1, stride=1, dilation=1),  # 空洞率2较好 cer=0.98-->0.53(dila=1)
             nn.BatchNorm1d(len(self.labels)+1),
