@@ -14,6 +14,7 @@ from models.QuartNet import MyModel2
 from decoder import GreedyDecoder
 from utils.asr_metrics import WER
 import logging
+from scheduler.novograd import Novograd
 logger = logging.getLogger(__name__)
 
 
@@ -35,23 +36,24 @@ class LightingModule(pl.LightningModule):
         :return: torch.optim
         """
         self.print('设置学习率' + str(self.learning_rate))
-        sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        # sgd_optim = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         # adam_optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         # lr_schulder = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(sgd_optim, T_0=5,
         #                                                                    T_mult=2, last_epoch=-1)
         # lr_schulder = CosineAnnealingWarmupRestarts(sgd_optim, first_cycle_steps=5000, cycle_mult=2,
         #                                             max_lr=self.learning_rate, min_lr=1e-3, warmup_steps=1000, gamma=0.5)
-        lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(sgd_optim, mode='min',
-                                                                 factor=0.1, patience=10,
-                                                                 threshold=1e-4, threshold_mode='rel',
-                                                                 min_lr=1e-4)
-        # lr_schulder = torch.optim.lr_scheduler.ExponentialLR(sgd_optim, gamma=0.97)
+        novo_optim = Novograd(self.parameters(), lr=self.learning_rate,weight_decay=self.weight_decay)
+        #lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(novo_optim, mode='min',
+        #                                                         factor=0.2, patience=10,
+        #                                                         threshold=1e-4, threshold_mode='rel',
+        #                                                         min_lr=1e-4)
+        lr_schulder = torch.optim.lr_scheduler.ExponentialLR(novo_optim, gamma=0.98)
         pack_schulder = {
             'scheduler': lr_schulder,
             'interval': 'epoch',
-            'monitor': 'val_loss',
+            'monitor': 'train_loss',
         }
-        return [sgd_optim], [pack_schulder]
+        return [novo_optim], [pack_schulder]
 
     def training_step(self, batch, batch_idx):
         """
@@ -179,7 +181,7 @@ def main(cfg: DictConfig):
                             amp_backend=tran_cfg.get('amp_backend'),  # native推荐
                             profiler="simple",  # 打印各个函数执行时间
                             accumulate_grad_batches=1,  # 提高batch_size的办法
-                            # limit_val_batches=0.02,
+                            limit_val_batches=0.2,
                             max_epochs=tran_cfg.get('total_epoch'))
     trainer.fit(model, datamodule=data_module)
 
