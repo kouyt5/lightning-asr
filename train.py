@@ -104,6 +104,34 @@ class LightingModule(pl.LightningModule):
         }
         return return_val
 
+    def test_step(self, batch, batch_idx):
+        input = batch[0]
+        percents = batch[2]
+        trans = batch[1]
+        trans_lengths = batch[3]
+        out = self.encoder(input, percents)
+        t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
+        loss = torch.mean(self.loss(out.transpose(0, 1),
+                         trans, t_lengths, trans_lengths))
+        return_val = {
+            'test_loss': loss,
+            'input': batch[0],
+            'test_wer': self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
+            'pred': self.decoder.decode(out),
+            'true': self.decoder.convert_to_strings(trans, remove_repetitions=False)
+        }
+        return return_val
+
+    def test_epoch_end(
+        self, outputs: List[Any]
+    ) -> None:
+        count = 0
+        total_wer = 0.
+        for item in outputs:
+            total_wer += item['test_wer']
+            count += 1
+        logger.info('测试wer：'+str(total_wer/(count+1e-9)))
+
     def validation_epoch_end(self, outputs: List[Any]) -> None:
         """
         验证一轮后调用，用于总结总的验证集效果
