@@ -7,6 +7,8 @@ data:
   val_manifest: "/mnt/workspace/datasets/libri/dev_clean.json"
   labels: [" ","'","a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
+  num_worker: 6
+
 train:
   total_epoch: 100
   checkpoint: null # None或模型文件的位置

@@ -106,13 +106,14 @@ class MyAudioDataset(Dataset):
 
 
 class LibriDataModule(pl.LightningDataModule):
-    def __init__(self, train_manifest: str, dev_manifest: str, labels: list, train_bs=16, dev_bs=16):
+    def __init__(self, train_manifest: str, dev_manifest: str, labels: list, train_bs=16, dev_bs=16, num_worker=0):
         super().__init__()
         self.train_manifest = train_manifest
         self.dev_manifest = dev_manifest
         self.train_bs = train_bs
         self.dev_bs = dev_bs
         self.labels = labels
+        self.num_worker = num_worker
 
     def setup(self, stage=None):
         self.train_datasets = MyAudioDataset(self.train_manifest, self.labels, mask=True)
@@ -120,15 +121,15 @@ class LibriDataModule(pl.LightningDataModule):
         self.test_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=40)
 
     def train_dataloader(self):
-        return DataLoader(self.train_datasets, batch_size=self.train_bs, num_workers=6,
+        return DataLoader(self.train_datasets, batch_size=self.train_bs, num_workers=self.num_worker,
                           pin_memory=True, collate_fn=self._collate_fn, drop_last=True)
 
     def val_dataloader(self):
-        return DataLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=6,
+        return DataLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=self.num_worker,
                           pin_memory=True, collate_fn=self._collate_fn, drop_last=False)
 
     def test_dataloader(self):
-        return DataLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=6,
+        return DataLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=self.num_worker,
                           pin_memory=True, collate_fn=self._collate_fn)
 
     def get_train_step(self):
