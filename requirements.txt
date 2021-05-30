@@ -1,8 +1,6 @@
-torch==1.7.1
+torch==1.8.0
 omegaconf==2.0.5
-flask==1.1.2
-torchvision==0.8.2
 editdistance~=0.5.3
-torchaudio==0.7.2
-pytorch-lightning==1.1.5
+torchaudio==0.8.0
+pytorch-lightning==1.2.7
 comet-ml==3.2.12

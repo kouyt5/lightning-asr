@@ -9,15 +9,19 @@ class SeprationConv(nn.Module):
         self.last = last
         self.mask = mask
         if dilation > 1:
-            self.depthwise_conv = nn.Conv1d(in_ch, in_ch, kernel_size=k, stride=stride,
-                                            padding=(dilation * k) // 2 - 1, groups=in_ch, dilation=dilation)
+            self.depthwise_conv = nn.Conv1d(in_ch, in_ch, kernel_size=(k,), stride=(stride,),
+                                            padding=((dilation * k) // 2 - 1,), groups=in_ch,
+                                            dilation=(dilation,), bias=False)
         else:
-            self.depthwise_conv = nn.Conv1d(in_ch, in_ch, kernel_size=k, stride=stride,
-                                            padding=k // 2, groups=in_ch, dilation=dilation)
-        self.pointwise_conv = nn.Conv1d(in_ch, out_ch, kernel_size=1, stride=stride)
-        self.bn = nn.BatchNorm1d(out_ch)
-        self.relu = nn.ReLU()
+            self.depthwise_conv = nn.Conv1d(in_ch, in_ch, kernel_size=(k,), stride=(stride,),
+                                            padding=(k // 2,), groups=in_ch, dilation=(dilation,),
+                                            bias=False)
+        self.pointwise_conv = nn.Conv1d(in_ch, out_ch, kernel_size=(1,), stride=(1,),
+                                        bias=False)
+        self.bn = nn.BatchNorm1d(out_ch, eps=1e-3)
+        self.relu = nn.ReLU(inplace=True)
         self.maskcnn = MaskCNN()
+        self.dropout = nn.Dropout(p=0.0)
 
     def forward(self, input, percents):
         x = self.depthwise_conv(input)
@@ -28,6 +32,7 @@ class SeprationConv(nn.Module):
         x = self.bn(x)
         if not self.last:
             x = self.relu(x)
+        x = self.dropout(x)
         return x
 
     def channel_shuffle(self, x, groups):
@@ -52,8 +57,8 @@ class QuartNetBlock(nn.Module):
             sep = SeprationConv(in_ch, in_ch, k, mask)
             seq.append(sep)
         self.reside = nn.Sequential(
-            nn.Conv1d(in_ch, out_ch, kernel_size=1),
-            nn.BatchNorm1d(out_ch),
+            nn.Conv1d(in_ch, out_ch, kernel_size=(1,), bias=False),
+            nn.BatchNorm1d(out_ch, eps=1e-3),
         )
         last_sep = SeprationConv(in_ch, out_ch, k=k, last=True, mask=mask)
         seq.append(last_sep)
@@ -76,8 +81,8 @@ class QuartNet(nn.Module):
         self.first_cnn = nn.Sequential(
             nn.Conv1d(64, 256, kernel_size=33, stride=2,
                       padding=16),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
+            nn.BatchNorm1d(256, eps=1e-3),
+            nn.ReLU(inplace=True),
         )
         # self.first_cnn = SeprationConv(64,256,33,stride=2,mask=True)
         self.block1 = QuartNetBlock(repeat=5, in_ch=256, out_ch=256, k=33)
@@ -106,8 +111,8 @@ class QuartNet(nn.Module):
         # )
         self.last_cnn2 = nn.Sequential(
             nn.Conv1d(512, 1024, kernel_size=1, stride=1),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
+            nn.BatchNorm1d(1024, eps=1e-3),
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, input, percents):
@@ -129,35 +134,52 @@ class QuartNet(nn.Module):
 class QuartNet12(nn.Module):
     def __init__(self):
         super(QuartNet12, self).__init__()
-        self.first_cnn = nn.Sequential(
-            nn.Conv1d(64, 256, kernel_size=33, stride=2,
-                      padding=16),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-        )
-        self.block1 = QuartNetBlock(repeat=3, in_ch=256, out_ch=256, k=33)
+        # self.first_cnn = nn.Sequential(
+        #     nn.Conv1d(64, 256, kernel_size=(33,), stride=(2,),
+        #               padding=(16,)),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(inplace=True),
+        # )
+        self.first_cnn = SeprationConv(in_ch=64, out_ch=256, k=33, last=False, mask=False, stride=2)
+        self.block1 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=False)
+        self.block12 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=False)
+        self.block13 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=False)
         # self.block12 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=33) # add layer
-        self.block2 = QuartNetBlock(repeat=3, in_ch=256, out_ch=256, k=39)
+        self.block2 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=False)
+        self.block22 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=False)
+        self.block23 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=False)
         # self.block22 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=39) # add layer
-        self.block3 = QuartNetBlock(repeat=3, in_ch=256, out_ch=512, k=51)
-        self.block4 = QuartNetBlock(repeat=3, in_ch=512, out_ch=512, k=63)
-        self.block5 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=75)
+        self.block3 = QuartNetBlock(repeat=1, in_ch=256, out_ch=512, k=51, mask=False)
+        self.block32 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=51, mask=False)
+        self.block33 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=51, mask=False)
+        self.block4 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=False)
+        self.block42 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=False)
+        self.block43 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=False)
+        self.block5 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=75,  mask=False)
         self.last_cnn2 = nn.Sequential(
-            nn.Conv1d(512, 1024, kernel_size=1, stride=1),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
+            nn.Conv1d(512, 1024, kernel_size=(1,), stride=(1,), bias=False),
+            nn.BatchNorm1d(1024, eps=1e-3),
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, input, percents):
         # x = input.view(input.size(0),input.size(2),input.size(3))
         x = input.squeeze(dim=1).contiguous()
-        x = self.first_cnn(x)
+        x = self.first_cnn(x, percents)
         x = self.block1(x, percents)
+        x = self.block12(x, percents)
+        x = self.block13(x, percents)
         # x = self.block12(x,percents)
         x = self.block2(x, percents)
+        x = self.block22(x, percents)
+        x = self.block23(x, percents)
         # x = self.block22(x,percents)
         x = self.block3(x, percents)
+        x = self.block32(x, percents)
+        x = self.block33(x, percents)
         x = self.block4(x, percents)
+        x = self.block42(x, percents)
+        x = self.block43(x, percents)
         x = self.block5(x, percents)
         # x = self.last_cnn(x, percents)
         x = self.last_cnn2(x)
@@ -207,11 +229,12 @@ class MyModel2(nn.Module):
         # self.maskcnn = MaskCNN()
         self.labels = labels
         self.cnn = QuartNet12()
-        self.last_cnn3 = nn.Sequential(
-            nn.Conv1d(1024, len(self.labels)+1, kernel_size=1, stride=1, dilation=1),  # 空洞率2较好 cer=0.98-->0.53(dila=1)
-            nn.BatchNorm1d(len(self.labels)+1),
-            nn.ReLU(),
-        )
+        # self.last_cnn3 = nn.Sequential(
+        #     nn.Conv1d(1024, len(self.labels)+1, kernel_size=1, stride=1, dilation=1),  # 空洞率2较好 cer=0.98-->0.53(dila=1)
+        #     nn.BatchNorm1d(len(self.labels)+1),
+        #     nn.ReLU(),
+        # )
+        self.last_cnn3 = nn.Conv1d(1024, len(self.labels) + 1, kernel_size=(1,))
         # self.rnn = BatchLSTM(64*128,128,True,True)
         # self.bn1 = nn.BatchNorm1d(256)
         # self.fc = nn.Linear(256, 29)
@@ -263,6 +286,23 @@ class MaskCNN(nn.Module):
 if __name__ == "__main__":
     input = torch.rand([8, 1, 64, 512], dtype=torch.float32)
     percents = torch.rand([8], dtype=torch.float32)
-    model = MyModel2([' ', 'a'])
+    model = MyModel2([" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+                   "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"])
     out = model(input, percents)
     print(out.size())
+
+    from ptflops import get_model_complexity_info
+    import torch
+    def prepare_input(inputs):
+        """
+        对输入的数据进行封装
+        """
+        x = torch.rand((8, *inputs), dtype=torch.float32)
+        percents = torch.rand([8], dtype=torch.float32)
+        return dict(input=x, percents=percents)
+    macs, params = get_model_complexity_info(model, (1, 64, 512),
+                                             as_strings=True,
+                                             input_constructor = prepare_input,
+                                             print_per_layer_stat=True, verbose=True)
+    print('{:<30} {:<8}'.format('macs:', macs))
+    print('{:<30} {:<8}'.format('params:', params))
