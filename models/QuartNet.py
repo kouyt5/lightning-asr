@@ -2,9 +2,12 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
+from activate_fun.Swish import Swish
+
 
 class SeprationConv(nn.Module):
-    def __init__(self, in_ch, out_ch, k=33, last=False, mask=True, dilation=1, stride=1):
+    def __init__(self, in_ch, out_ch, k=33, last=False, mask=True, dilation=1,
+                 stride=1, drop_rate=0.1):
         super(SeprationConv, self).__init__()
         self.last = last
         self.mask = mask
@@ -20,8 +23,9 @@ class SeprationConv(nn.Module):
                                         bias=False)
         self.bn = nn.BatchNorm1d(out_ch, eps=1e-3)
         self.relu = nn.ReLU(inplace=True)
+        self.swish = Swish()
         self.maskcnn = MaskCNN()
-        self.dropout = nn.Dropout(p=0.0)
+        self.dropout = nn.Dropout(p=drop_rate)
 
     def forward(self, input, percents):
         x = self.depthwise_conv(input)
@@ -92,23 +96,7 @@ class QuartNet(nn.Module):
         self.block3 = QuartNetBlock(repeat=5, in_ch=256, out_ch=512, k=51)
         self.block4 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=63)
         self.block5 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=75)
-
-        # self.last_cnn = nn.Sequential(
-        #     nn.Conv1d(512, 512, kernel_size= 87, stride=1,groups=512,
-        #               padding=87//2),
-        #     nn.Conv1d(512, 512, kernel_size=1, stride=1),
-        #     nn.BatchNorm1d(512),
-        #     nn.ReLU(),
-        # )
-        # self.last_cnn = QuartNetBlock(repeat=1,in_ch=512,out_ch=512,k=87,mask=False)
         self.last_cnn = SeprationConv(512, 512, k=87, last=False, mask=True, dilation=1)  # 空洞率为2收敛比1慢 cer0.99-->0.92
-        # self.last_cnn = nn.Sequential(
-        #     nn.Conv1d(512, 512, kernel_size= 87, stride=1, groups=512,dilation=1,
-        #         padding=87//2),
-        #     nn.Conv1d(512, 512, kernel_size=1, stride=1),
-        #     nn.BatchNorm1d(512),
-        #     nn.ReLU(),
-        # )
         self.last_cnn2 = nn.Sequential(
             nn.Conv1d(512, 1024, kernel_size=1, stride=1),
             nn.BatchNorm1d(1024, eps=1e-3),
@@ -116,7 +104,6 @@ class QuartNet(nn.Module):
         )
 
     def forward(self, input, percents):
-        # x = input.view(input.size(0),input.size(2),input.size(3))
         x = input.squeeze(dim=1).contiguous()
         x = self.first_cnn(x)
         x = self.block1(x, percents)

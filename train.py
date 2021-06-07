@@ -44,12 +44,12 @@ class LightingModule(pl.LightningModule):
 
         novo_optim = Novograd(self.parameters(), lr=self.learning_rate,weight_decay=self.weight_decay, betas=(0.8, 0.5))
         lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(novo_optim, mode='min',
-                                                                factor=0.1, patience=10,
-                                                                threshold=1e-4, threshold_mode='rel',
-                                                                min_lr=1e-4)
-        # lr_schulder = CosineAnnealingWarmupRestarts(novo_optim, first_cycle_steps=self.total_epoch*len(self.train_dataloader()),
-        #                                             cycle_mult=2, max_lr=self.learning_rate, min_lr=1e-5,
-        #                                             warmup_steps=1000, gamma=0.5)
+                                                                 factor=0.1, patience=10,
+                                                                 threshold=1e-4, threshold_mode='rel',
+                                                                 cooldown=3, min_lr=1e-4)
+        #lr_schulder = CosineAnnealingWarmupRestarts(novo_optim, first_cycle_steps=self.total_epoch*len(self.train_dataloader()),
+         #                                           cycle_mult=2, max_lr=self.learning_rate, min_lr=1e-5,
+        #                                            warmup_steps=2000, gamma=0.5)
         # lr_schulder = torch.optim.lr_scheduler.ExponentialLR(novo_optim, gamma=0.98)
         pack_schulder = {
             'scheduler': lr_schulder,
@@ -82,8 +82,8 @@ class LightingModule(pl.LightningModule):
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
         if batch_idx % 50 == 0:
             print('\n')
-            logging.info("pred:"+str(self.decoder.decode(out)[0][0]))
-            logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0]))
+            logging.info("pred:"+str(self.decoder.decode(out)[0][0][0]).strip())
+            logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0][0]))
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -95,16 +95,21 @@ class LightingModule(pl.LightningModule):
         t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
         loss = torch.mean(self.loss(out.transpose(0, 1),
                          trans, t_lengths, trans_lengths))
-        self.log('val_wer', self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
+        wer = self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths)
+        self.log('val_wer', wer,
                  on_epoch=True, prog_bar=True, logger=True)
         self.log('val_loss', loss, on_epoch=True, prog_bar=True, logger=True)
         return_val = {
             'val_loss': loss,
             'input': batch[0],
-            'val_wer': self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
+            'val_wer': wer,
             'pred': self.decoder.decode(out),
             'true': self.decoder.convert_to_strings(trans, remove_repetitions=False)
         }
+        if batch_idx % 50 == 0:
+            print('\n')
+            logging.info("pred:"+str(self.decoder.decode(out)[0][0][0]).strip())
+            logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0][0]))
         return return_val
 
     def test_step(self, batch, batch_idx):
@@ -197,7 +202,8 @@ def main(cfg: DictConfig):
     loggers = init_loggers(cfg=logger_cfg)
     data_module = LibriDataModule(data_cfg.get('train_manifest'), data_cfg.get('val_manifest'),
                                   labels=data_cfg.get('labels'), train_bs=tran_cfg.get('train_batch_size'),
-                                  dev_bs=tran_cfg.get('dev_batch_size'))
+                                  dev_bs=tran_cfg.get('dev_batch_size'),
+                                  num_worker=data_cfg.get('num_worker'))
     model = LightingModule(learning_rate=tran_cfg.get("learning_rate"),
                            weight_decay=tran_cfg.get("weight_decay"),
                            labels=data_cfg.get('labels'),
@@ -217,8 +223,10 @@ def main(cfg: DictConfig):
                             # limit_val_batches=0.005,
                             # limit_train_batches=0.1,
                             max_epochs=tran_cfg.get('total_epoch'),
+                            check_val_every_n_epoch=3,
                             gradient_clip_val=0,
-                            gradient_clip_algorithm='value')
+                            gradient_clip_algorithm='value',
+                            num_nodes=tran_cfg.get('num_nodes'))
     trainer.fit(model, datamodule=data_module)
 
 

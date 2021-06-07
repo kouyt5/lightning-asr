@@ -15,10 +15,11 @@ train:
   gpus: 1
   tpu_core_num: null
   train_batch_size: 32
-  dev_batch_size: 16
+  dev_batch_size: 32
   learning_rate: 1e-2
-  weight_decay: 1e-4
+  weight_decay: 1e-3
   amp_level: "O1"
   precision: 16
   amp_backend: native
   accelerator: ddp
+  num_nodes: 1
