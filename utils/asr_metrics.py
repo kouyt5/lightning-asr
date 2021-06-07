@@ -16,8 +16,9 @@ from typing import List
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import Metric
+# from pytorch_lightning.metrics import Metric
 import logging
+from torchmetrics import Metric
 
 __all__ = ['word_error_rate', 'WER']
 

@@ -7,16 +7,19 @@ data:
   val_manifest: "/mnt/workspace/datasets/libri/dev_clean.json"
   labels: [" ","'","a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
+  num_worker: 6
+
 train:
   total_epoch: 100
   checkpoint: null # None或模型文件的位置
   gpus: 1
   tpu_core_num: null
   train_batch_size: 32
-  dev_batch_size: 16
+  dev_batch_size: 32
   learning_rate: 1e-2
-  weight_decay: 1e-4
+  weight_decay: 1e-3
   amp_level: "O1"
   precision: 16
   amp_backend: native
   accelerator: ddp
+  num_nodes: 1
