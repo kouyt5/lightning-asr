@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import random
+import numpy as np
 
 
 class MyAudioDataset(Dataset):
@@ -39,13 +40,12 @@ class MyAudioDataset(Dataset):
         self.audio_f_mask = torchaudio.transforms.FrequencyMasking(freq_mask_param=27)
         self.audio_t_mask = torchaudio.transforms.TimeMasking(time_mask_param=100)
 
-
     def __getitem__(self, index):
         data = self.datasets[index]
         text2id = [self.char2index[char] for char in data['text']]
         return self.parse_audio(data["audio_filepath"], mask=self.mask), text2id, data['audio_filepath']
 
-    def cutout(self, x:torch.Tensor) -> torch.Tensor:
+    def cutout(self, x: torch.Tensor) -> torch.Tensor:
         """
         对音频做cutout
         :param x: shape(1, 64, T)
@@ -56,30 +56,67 @@ class MyAudioDataset(Dataset):
 
         for idx in range(sh[0]):
             for i in range(self.rect_masks):
-                rect_x = int(self.rand.uniform(0, sh[1] - self.rect_freq))
-                rect_y = int(self.rand.uniform(0, sh[2] - self.rect_time))
-
                 w_x = int(self.rand.uniform(0, self.rect_freq))
                 w_y = int(self.rand.uniform(0, self.rect_time))
 
-                mask[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 1
+                rect_x = int(self.rand.uniform(0, sh[1] - w_x))
+                rect_y = int(self.rand.uniform(0, sh[2] - w_y))
 
+                mask[idx, rect_x: rect_x + w_x, rect_y: rect_y + w_y] = 1
+
+        x = x.masked_fill(mask.type(torch.bool), 0)
+        return x
+
+    def aug_mag(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        音频做augment
+        :param x: x.shape = (1, 64, T)
+        :return: (1, 64, T)
+        """
+        freq_mask = 27
+        time_mask = 100
+        sh = x.shape
+        mask = torch.zeros(x.shape).byte()
+        w_x = int(self.rand.uniform(0, freq_mask))
+        w_y = int(self.rand.uniform(0, time_mask))
+
+        rect_x = int(self.rand.uniform(0, sh[1] - w_x))
+        rect_y = int(self.rand.uniform(0, sh[2] - w_y))
+
+        mask[0, rect_x: rect_x + w_x, :] = 1
+        mask[0, :, rect_y: rect_y + w_y] = 1
+        x = x.masked_fill(mask.type(torch.bool), 0)
+        return x
+
+    def sample_aug(self, x: torch.Tensor, prob: float = 0.4) -> torch.Tensor:
+        """
+        随机丢失mel谱点
+        :param x: (1, 64, T)
+        :param prob: 概率
+        :return: (1, 64, T)
+        """
+        prob = random.uniform(0., prob)
+        mask = np.random.uniform(0, 0.5 / (1 - prob), size=x.shape)
+        mask = np.round(mask)
+        mask = torch.from_numpy(mask).byte()
         x = x.masked_fill(mask.type(torch.bool), 0)
         return x
 
     def parse_audio(self, audio_path, mask=False):
         if not os.path.exists(path=audio_path):
             raise ("音频路径不存在 " + audio_path)
-        y, sr = torchaudio.load(audio_path, self.sr)
+        y, sr = torchaudio.backend.sox_backend.load(audio_path)
         # # dither
         y += 1e-5 * torch.randn_like(y)
         # do preemphasis
-        y = torch.cat((y[:, 0].unsqueeze(1), y[:, 1:] - 0.97 * y[:, :-1]), dim=1,)
+        y = torch.cat((y[:, 0].unsqueeze(1), y[:, 1:] - 0.97 * y[:, :-1]), dim=1, )
 
         spec = self.mel_transformer(y)
         y = self.amplitudeToDB(spec)
         # F-T mask
         if mask:
+            # y = self.sample_aug(y, 0.2)
+            # y = self.aug_mag(y)
             # y = self.audio_f_mask(y)
             # y = self.audio_t_mask(y)
             # cutout
@@ -89,7 +126,6 @@ class MyAudioDataset(Dataset):
         y = torch.div((y - mean), std)
 
         return y  # (1,64,T)
-
 
     def id2txt(self, id_list):
         """
@@ -138,6 +174,7 @@ class LibriDataModule(pl.LightningDataModule):
         :return: steps
         """
         return len(self.train_dataloader())
+
     # def transfer_batch_to_device(self, batch, device):
     #     batch[0][0] = batch[0][0].to(device)
     #     batch[0][2] = batch[0][2].to(device)
@@ -166,7 +203,7 @@ class LibriDataModule(pl.LightningDataModule):
             inputs[x][0].narrow(1, 0, seq_length).copy_(tensor)
             input_percentages[x] = seq_length / float(max_seqlength)
             target_sizes[x] = len(trans_txt)
-            targets[x].narrow(0,0,len(trans_txt)).copy_(torch.IntTensor(trans_txt))
+            targets[x].narrow(0, 0, len(trans_txt)).copy_(torch.IntTensor(trans_txt))
         targets = targets.long()
         return inputs, targets, input_percentages, target_sizes, paths
 
@@ -181,8 +218,9 @@ def main(cfg: DictConfig):
     id2txt = dataset.id2txt(txt2id)
     # dataloader 测试
     dataloader = LibriDataModule(data_cfg.get('train_manifest'), data_cfg.get('val_manifest'),
-                                  labels=data_cfg.get('labels')).train_dataloader()
-    for batch in enumerate(dataloader):
+                                 labels=data_cfg.get('labels'))
+    dataloader.setup()
+    for batch in enumerate(dataloader.train_dataloader()):
         print("inputs:" + str(batch[1][0].size()))
         print("targets:" + str(batch[1][1].size()))
         print("input_percentages:" + str(batch[1][2].size()))
