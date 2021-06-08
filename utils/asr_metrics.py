@@ -135,6 +135,20 @@ class WER(Metric):
             hypotheses.append(hypothesis)
         return hypotheses
 
+    def decode_reference(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> List[str]:
+        references = []
+        with torch.no_grad():
+            targets_cpu_tensor = targets.long().cpu()
+            tgt_lenths_cpu_tensor = target_lengths.long().cpu()
+
+            # iterate over batch
+            for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
+                tgt_len = tgt_lenths_cpu_tensor[ind].item()
+                target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
+                reference = ''.join([self.labels_map[c] for c in target])
+                references.append(reference)
+        return references
+
     def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor):
         words = 0.0
         scores = 0.0

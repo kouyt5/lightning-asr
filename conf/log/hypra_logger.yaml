@@ -37,3 +37,5 @@ job_logging:
     - file
     - console
   disable_existing_loggers: false
+run:
+  dir: outputs/${model_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}

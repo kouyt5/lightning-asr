@@ -1,3 +1,6 @@
+import logging
+from typing import Optional, List, Union
+
 import torch
 import torchaudio
 from torch.utils.data import Dataset, DataLoader
@@ -5,13 +8,13 @@ import json
 import os
 import pytorch_lightning as pl
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 import random
 import numpy as np
 
 
 class MyAudioDataset(Dataset):
-    def __init__(self, manifest_path, labels, max_duration=16, mask=False, win_len=0.02, sr=16000):
+    def __init__(self, manifest_path: list, labels, max_duration=16, mask=False, win_len=0.02, sr=16000):
         torchaudio.set_audio_backend("sox_io")
         self.mask = mask
         self.win_len = win_len
@@ -23,12 +26,13 @@ class MyAudioDataset(Dataset):
         self.rect_freq = 50
         self.rect_time = 120
         self.rand = random.Random()
-        with open(manifest_path, encoding='utf-8') as f:
-            for line in f.readlines():
-                data = json.loads(line, encoding='utf-8')
-                if data['duration'] > max_duration:
-                    continue
-                self.datasets.append(data)
+        for item in manifest_path:
+            with open(item, encoding='utf-8') as f:
+                for line in f.readlines():
+                    data = json.loads(line, encoding='utf-8')
+                    if data['duration'] > max_duration:
+                        continue
+                    self.datasets.append(data)
         self.index2char = dict([(i, labels[i]) for i in range(len(labels))])
         self.char2index = dict([(labels[i], i) for i in range(len(labels))])
         win_bin = int(self.win_len * self.sr)
@@ -102,6 +106,19 @@ class MyAudioDataset(Dataset):
         x = x.masked_fill(mask.type(torch.bool), 0)
         return x
 
+    def sub_secquence(self, x: torch.Tensor, weight: float=0.1):
+        """
+        获取子序列
+        :param x: (T)
+        :param weight:
+        :return:
+        """
+        length = x.shape[1]
+        target_length = int(length * np.random.uniform(weight, 1))  # 0-0.1随机采样
+        location = int(np.random.uniform(0, length-target_length))
+        return x[: ,location:target_length]
+
+
     def parse_audio(self, audio_path, mask=False):
         if not os.path.exists(path=audio_path):
             raise ("音频路径不存在 " + audio_path)
@@ -110,17 +127,18 @@ class MyAudioDataset(Dataset):
         y += 1e-5 * torch.randn_like(y)
         # do preemphasis
         y = torch.cat((y[:, 0].unsqueeze(1), y[:, 1:] - 0.97 * y[:, :-1]), dim=1, )
-
+        if mask:
+            y = self.sub_secquence(y, weight=1)
         spec = self.mel_transformer(y)
         y = self.amplitudeToDB(spec)
         # F-T mask
         if mask:
             # y = self.sample_aug(y, 0.2)
-            # y = self.aug_mag(y)
+            y = self.aug_mag(y)
             # y = self.audio_f_mask(y)
             # y = self.audio_t_mask(y)
             # cutout
-            y = self.cutout(y)
+            # y = self.cutout(y)
         # 归一化
         std, mean = torch.std_mean(y)
         y = torch.div((y - mean), std)
@@ -142,10 +160,14 @@ class MyAudioDataset(Dataset):
 
 
 class LibriDataModule(pl.LightningDataModule):
-    def __init__(self, train_manifest: str, dev_manifest: str, labels: list, train_bs=16, dev_bs=16, num_worker=0):
+    def __init__(self, train_manifest: Union[ListConfig, str],
+                 dev_manifest: Union[ListConfig, str],
+                 test_manifest: Union[ListConfig, str],
+                 labels: list, train_bs=16, dev_bs=16, num_worker=0):
         super().__init__()
-        self.train_manifest = train_manifest
-        self.dev_manifest = dev_manifest
+        self.train_manifest = list(train_manifest) if isinstance(train_manifest, ListConfig) else [train_manifest]
+        self.dev_manifest = list(dev_manifest) if isinstance(dev_manifest, ListConfig) else [dev_manifest]
+        self.test_manifest = list(test_manifest) if isinstance(test_manifest, ListConfig) else [test_manifest]
         self.train_bs = train_bs
         self.dev_bs = dev_bs
         self.labels = labels
@@ -154,7 +176,7 @@ class LibriDataModule(pl.LightningDataModule):
     def setup(self, stage=None):
         self.train_datasets = MyAudioDataset(self.train_manifest, self.labels, mask=True)
         self.dev_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=40)
-        self.test_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=40)
+        self.test_datasets = MyAudioDataset(self.test_manifest, self.labels, max_duration=40)
 
     def train_dataloader(self):
         return DataLoader(self.train_datasets, batch_size=self.train_bs, num_workers=self.num_worker,
@@ -165,7 +187,7 @@ class LibriDataModule(pl.LightningDataModule):
                           pin_memory=True, collate_fn=self._collate_fn, drop_last=False)
 
     def test_dataloader(self):
-        return DataLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=self.num_worker,
+        return DataLoader(self.test_datasets, batch_size=self.dev_bs, num_workers=self.num_worker,
                           pin_memory=True, collate_fn=self._collate_fn)
 
     def get_train_step(self):
