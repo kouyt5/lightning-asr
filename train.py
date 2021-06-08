@@ -61,10 +61,6 @@ class LightingModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """
         每一步的训练，相当于原生pytorch的
-
-        >>> for i, batch in enumerate(DataLoader()):
-        >>>     self.training_step(batch, i)
-
         :param batch: 包含每一batch的数据
         :param batch_idx: index
         :return: loss: torch.Tensor, 或者一个字典, 但必须包含'loss' key
@@ -82,8 +78,8 @@ class LightingModule(pl.LightningModule):
                  on_step=True, on_epoch=True, prog_bar=True, logger=True)
         if batch_idx % 50 == 0:
             print('\n')
-            logging.info("pred:"+str(self.decoder.decode(out)[0][0][0]).strip())
-            logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0][0]))
+            logging.info("pred:"+self.wer.ctc_decoder_predictions_tensor(torch.argmax(out, dim=-1, keepdim=False))[0])
+            logging.info("true:"+self.wer.decode_reference(trans, trans_lengths)[0])
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -103,13 +99,13 @@ class LightingModule(pl.LightningModule):
             'val_loss': loss,
             'input': batch[0],
             'val_wer': wer,
-            'pred': self.decoder.decode(out),
-            'true': self.decoder.convert_to_strings(trans, remove_repetitions=False)
+            'pred': self.wer.ctc_decoder_predictions_tensor(torch.argmax(out, dim=-1, keepdim=False)),
+            'true': self.wer.decode_reference(trans, trans_lengths)
         }
         if batch_idx % 50 == 0:
             print('\n')
-            logging.info("pred:"+str(self.decoder.decode(out)[0][0][0]).strip())
-            logging.info("true:"+str(self.decoder.convert_to_strings(trans, remove_repetitions=False)[0][0]))
+            logging.info("pred:"+self.wer.ctc_decoder_predictions_tensor(torch.argmax(out, dim=-1, keepdim=False))[0])
+            logging.info("true:"+self.wer.decode_reference(trans, trans_lengths)[0])
         return return_val
 
     def test_step(self, batch, batch_idx):
@@ -125,8 +121,8 @@ class LightingModule(pl.LightningModule):
             'test_loss': loss,
             'input': batch[0],
             'test_wer': self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths),
-            'pred': self.decoder.decode(out),
-            'true': self.decoder.convert_to_strings(trans, remove_repetitions=False)
+            'pred': self.wer.ctc_decoder_predictions_tensor(torch.argmax(out, dim=-1, keepdim=False)),
+            'true': self.wer.decode_reference(trans, trans_lengths)
         }
         return return_val
 
@@ -174,16 +170,17 @@ class LightingModule(pl.LightningModule):
         # logger.info(checkpoint.keys())
         pass
 
-    def __init__(self, learning_rate=5e-3, weight_decay=1e-4, labels=None, total_epoch=50):
+    def __init__(self, learning_rate=5e-3, weight_decay=1e-4, labels=None,
+                 total_epoch=50, drop_rate: float = 0., mask: bool = False):
         super().__init__()
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.labels = labels
         self.total_epoch = total_epoch
-        self.save_hyperparameters('learning_rate', 'weight_decay', 'labels')
+        self.save_hyperparameters('learning_rate', 'weight_decay', 'drop_rate')
         self.wer = WER(vocabulary=self.labels)
         self.loss = torch.nn.CTCLoss(blank=len(self.labels), reduction='none')  # 最后一个作为black
-        self.encoder = MyModel2(labels=self.labels)
+        self.encoder = MyModel2(labels=self.labels, drop_rate=drop_rate, mask=mask)
         self.decoder = GreedyDecoder(labels=self.labels)
 
 
@@ -195,6 +192,7 @@ def main(cfg: DictConfig):
     tran_cfg = cfg.get('train')
     logger_cfg = cfg.get('loggers')
     data_cfg = cfg.get('data')
+    model_cfg = cfg.get('model')
     checkpoint_callback = pl.callbacks.ModelCheckpoint(dirpath="checkpoints", monitor='val_wer', verbose=True,
                                                        save_last=True, save_top_k=3,
                                                        filename="mnist-{epoch:02d}-{val_wer:.2f}")
@@ -202,12 +200,14 @@ def main(cfg: DictConfig):
     loggers = init_loggers(cfg=logger_cfg)
     data_module = LibriDataModule(data_cfg.get('train_manifest'), data_cfg.get('val_manifest'),
                                   labels=data_cfg.get('labels'), train_bs=tran_cfg.get('train_batch_size'),
-                                  dev_bs=tran_cfg.get('dev_batch_size'),
+                                  dev_bs=tran_cfg.get('dev_batch_size'), test_manifest=data_cfg.get('test_manifest'),
                                   num_worker=data_cfg.get('num_worker'))
     model = LightingModule(learning_rate=tran_cfg.get("learning_rate"),
                            weight_decay=tran_cfg.get("weight_decay"),
                            labels=data_cfg.get('labels'),
-                           total_epoch=tran_cfg.get('total_epoch'))
+                           total_epoch=tran_cfg.get('total_epoch'),
+                           drop_rate=model_cfg.get('drop_rate'),
+                           mask=model_cfg.get('mask'))
     trainer = pl.Trainer(gpus=tran_cfg.get('gpus'),
                             tpu_cores=tran_cfg.get('tpu_core_num'),  # google tpu训练
                             logger=loggers,
@@ -223,11 +223,12 @@ def main(cfg: DictConfig):
                             # limit_val_batches=0.005,
                             # limit_train_batches=0.1,
                             max_epochs=tran_cfg.get('total_epoch'),
-                            check_val_every_n_epoch=3,
+                            check_val_every_n_epoch=1,
                             gradient_clip_val=0,
                             gradient_clip_algorithm='value',
                             num_nodes=tran_cfg.get('num_nodes'))
     trainer.fit(model, datamodule=data_module)
+    trainer.test(model, test_dataloaders=data_module.test_dataloader())
 
 
 if __name__ == '__main__':

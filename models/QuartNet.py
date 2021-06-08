@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from activate_fun.Swish import Swish
+from activate_fun.Swish import Swish, Mish
 
 
 class SeprationConv(nn.Module):
@@ -23,7 +23,6 @@ class SeprationConv(nn.Module):
                                         bias=False)
         self.bn = nn.BatchNorm1d(out_ch, eps=1e-3)
         self.relu = nn.ReLU(inplace=True)
-        self.swish = Swish()
         self.maskcnn = MaskCNN()
         self.dropout = nn.Dropout(p=drop_rate)
 
@@ -54,17 +53,17 @@ class SeprationConv(nn.Module):
 
 
 class QuartNetBlock(nn.Module):
-    def __init__(self, repeat=3, in_ch=1, out_ch=32, k=33, mask=True):
+    def __init__(self, repeat=3, in_ch=1, out_ch=32, k=33, mask=True, drop_rate=0.):
         super(QuartNetBlock, self).__init__()
         seq = []
         for i in range(0, repeat - 1):
-            sep = SeprationConv(in_ch, in_ch, k, mask)
+            sep = SeprationConv(in_ch, in_ch, k, mask, drop_rate=drop_rate)
             seq.append(sep)
         self.reside = nn.Sequential(
             nn.Conv1d(in_ch, out_ch, kernel_size=(1,), bias=False),
             nn.BatchNorm1d(out_ch, eps=1e-3),
         )
-        last_sep = SeprationConv(in_ch, out_ch, k=k, last=True, mask=mask)
+        last_sep = SeprationConv(in_ch, out_ch, k=k, last=True, mask=mask, drop_rate=drop_rate)
         seq.append(last_sep)
         self.seq = nn.ModuleList(seq)
         self.last_relu = nn.ReLU()
@@ -119,7 +118,7 @@ class QuartNet(nn.Module):
 
 
 class QuartNet12(nn.Module):
-    def __init__(self):
+    def __init__(self, drop_rate=0., mask=False):
         super(QuartNet12, self).__init__()
         # self.first_cnn = nn.Sequential(
         #     nn.Conv1d(64, 256, kernel_size=(33,), stride=(2,),
@@ -127,26 +126,27 @@ class QuartNet12(nn.Module):
         #     nn.BatchNorm1d(256),
         #     nn.ReLU(inplace=True),
         # )
-        self.first_cnn = SeprationConv(in_ch=64, out_ch=256, k=33, last=False, mask=False, stride=2)
-        self.block1 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=False)
-        self.block12 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=False)
-        self.block13 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=False)
+        self.first_cnn = SeprationConv(in_ch=64, out_ch=256, k=33, last=False, mask=mask, stride=2, drop_rate=drop_rate)
+        self.block1 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=mask, drop_rate=drop_rate)
+        self.block12 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=mask, drop_rate=drop_rate)
+        self.block13 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=33, mask=mask, drop_rate=drop_rate)
         # self.block12 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=33) # add layer
-        self.block2 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=False)
-        self.block22 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=False)
-        self.block23 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=False)
+        self.block2 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=mask, drop_rate=drop_rate)
+        self.block22 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=mask, drop_rate=drop_rate)
+        self.block23 = QuartNetBlock(repeat=1, in_ch=256, out_ch=256, k=39, mask=mask, drop_rate=drop_rate)
         # self.block22 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=39) # add layer
-        self.block3 = QuartNetBlock(repeat=1, in_ch=256, out_ch=512, k=51, mask=False)
-        self.block32 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=51, mask=False)
-        self.block33 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=51, mask=False)
-        self.block4 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=False)
-        self.block42 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=False)
-        self.block43 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=False)
-        self.block5 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=75,  mask=False)
+        self.block3 = QuartNetBlock(repeat=1, in_ch=256, out_ch=512, k=51, mask=mask, drop_rate=drop_rate)
+        self.block32 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=51, mask=mask, drop_rate=drop_rate)
+        self.block33 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=51, mask=mask, drop_rate=drop_rate)
+        self.block4 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
+        self.block42 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
+        self.block43 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
+        self.block5 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=75,  mask=mask, drop_rate=drop_rate)
         self.last_cnn2 = nn.Sequential(
             nn.Conv1d(512, 1024, kernel_size=(1,), stride=(1,), bias=False),
             nn.BatchNorm1d(1024, eps=1e-3),
             nn.ReLU(inplace=True),
+            nn.Dropout(drop_rate)
         )
 
     def forward(self, input, percents):
@@ -211,24 +211,24 @@ class MyModel(nn.Module):
 
 
 class MyModel2(nn.Module):
-    def __init__(self, labels):
+    def __init__(self, labels, drop_rate=0., mask=False):
         super(MyModel2, self).__init__()
         # self.maskcnn = MaskCNN()
         self.labels = labels
-        self.cnn = QuartNet12()
+        self.encoder = QuartNet12(drop_rate=drop_rate, mask=mask)
         # self.last_cnn3 = nn.Sequential(
         #     nn.Conv1d(1024, len(self.labels)+1, kernel_size=1, stride=1, dilation=1),  # 空洞率2较好 cer=0.98-->0.53(dila=1)
         #     nn.BatchNorm1d(len(self.labels)+1),
         #     nn.ReLU(),
         # )
-        self.last_cnn3 = nn.Conv1d(1024, len(self.labels) + 1, kernel_size=(1,))
+        self.decoder = nn.Conv1d(1024, len(self.labels) + 1, kernel_size=(1,))
         # self.rnn = BatchLSTM(64*128,128,True,True)
         # self.bn1 = nn.BatchNorm1d(256)
         # self.fc = nn.Linear(256, 29)
 
     def forward(self, input, percents):
-        x = self.cnn(input, percents)  # N*C*T
-        x = self.last_cnn3(x)
+        x = self.encoder(input, percents)  # N*C*T
+        x = self.decoder(x)
         # x = self.maskcnn(x, percents)
         # x = x.view(x.size(0), x.size(1)*x.size(2), -1).transpose(1, 2).contiguous()
         # lengths=torch.mul(x.size(1), percents).int()
