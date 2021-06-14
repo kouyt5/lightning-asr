@@ -20,7 +20,7 @@ def init_loggers(cfg: DictConfig):
         save_dir=tensorboard_cfg.get("save_dir"),
         name=tensorboard_cfg.get("name")
     )
-    comet_logger.experiment.log_code(file_name=None, folder='../../../')
+    comet_logger.experiment.log_code(file_name=None, folder='../../../../')
     return tensorboard_logger, comet_logger
 
 

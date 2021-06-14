@@ -11,7 +11,8 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from utils import get_mnist_pair
-from models.QuartNet import MyModel2
+#from models.QuartNet import MyModel2
+from models.QuartNetContext import MyModel2
 from decoder import GreedyDecoder
 from utils.asr_metrics import WER
 import logging
@@ -54,7 +55,7 @@ class LightingModule(pl.LightningModule):
         pack_schulder = {
             'scheduler': lr_schulder,
             'interval': 'epoch',
-            'monitor': 'train_loss',
+            'monitor': 'val_loss',
         }
         return [novo_optim], [pack_schulder]
 
