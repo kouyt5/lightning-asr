@@ -108,7 +108,7 @@ def transform_all_wavs(wav_info: list, target_wav_dir, num_workers=6):
     source_target_pack_wav_lists = []
     for item in wav_info:
         source_wav = item["path"]
-        target_wav = os.path.join(target_wav_dir, source_wav.split('/')[-1].split('.')[0]+'.wav')
+        target_wav = os.path.abspath(os.path.join(target_wav_dir, source_wav.split('/')[-1].split('.')[0]+'.wav'))
         source_target_pack_wav_lists.append((source_wav, target_wav, item["text"]))
     processed_info = mp.Manager().list()  # 创建一个线程安全的列表,存放信息
     transform = sox.Transformer().convert(samplerate=16000, n_channels=1, bitdepth=16)
