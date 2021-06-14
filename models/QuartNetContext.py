@@ -21,7 +21,7 @@ class SeprationConv(nn.Module):
                                             bias=False)
         self.pointwise_conv = nn.Conv1d(in_ch, out_ch, kernel_size=(1,), stride=(1,),
                                         bias=False)
-        # self.bn = nn.BatchNorm1d(out_ch, eps=1e-3)
+        self.bn = nn.BatchNorm1d(out_ch, eps=1e-3)
         # self.ln = nn.LayerNorm(out_ch)
         self.relu = nn.ReLU(inplace=True)
         self.maskcnn = MaskCNN()
@@ -33,7 +33,7 @@ class SeprationConv(nn.Module):
         x = self.channel_shuffle(x, groups=1)
         if self.mask:
             x = self.maskcnn(x, percents)
-        # x = self.bn(x)
+        x = self.bn(x)
         # x = self.ln(x.transpose(1, 2)).transpose(1, 2)
         if not self.last:
             x = self.relu(x)
@@ -147,7 +147,7 @@ class QuartNet12(nn.Module):
         # self.block6 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=87, mask=mask, drop_rate=drop_rate)
         self.last_cnn2 = nn.Sequential(
             nn.Conv1d(512, 1024, kernel_size=(1,), stride=(1,), bias=False),
-            # nn.BatchNorm1d(1024, eps=1e-3),
+            nn.BatchNorm1d(1024, eps=1e-3),
             nn.ReLU(inplace=True),
             nn.Dropout(drop_rate)
         )
