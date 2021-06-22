@@ -13,6 +13,7 @@ import urllib.request
 parser = argparse.ArgumentParser(description='Aishell Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
 args = parser.parse_args()
+logging.basicConfig(level=logging.DEBUG)
 
 URL = {'data_aishell': "http://www.openslr.org/resources/33/data_aishell.tgz"}
 
