@@ -10,6 +10,9 @@ import subprocess
 import tarfile
 import urllib.request
 
+import soundfile
+from tqdm import tqdm
+
 parser = argparse.ArgumentParser(description='Aishell Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
 args = parser.parse_args()
@@ -86,7 +89,7 @@ def __process_data(data_folder: str, dst_folder: str):
         json_lines = []
         audio_dir = os.path.join(data_folder, 'wav', dt)
         for sub_folder, _, file_list in os.walk(audio_dir):
-            for fname in file_list:
+            for fname in tqdm(file_list,total=len(file_list)):
                 audio_path = os.path.join(sub_folder, fname)
                 audio_id = fname.strip('.wav')
                 if audio_id not in transcript_dict:
@@ -94,7 +97,8 @@ def __process_data(data_folder: str, dst_folder: str):
                 text = transcript_dict[audio_id]
                 for li in text:
                     vocab_count[li] = vocab_count.get(li, 0) + 1
-                duration = subprocess.check_output('soxi -D {0}'.format(audio_path), shell=True)
+                data, sr = soundfile.read(audio_path)
+                duration = len(data) / sr
                 duration = float(duration)
                 json_lines.append(
                     json.dumps(
