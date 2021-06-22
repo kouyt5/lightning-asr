@@ -37,7 +37,7 @@ class MyAudioDataset(Dataset):
         self.char2index = dict([(labels[i], i) for i in range(len(labels))])
         win_bin = int(self.win_len * self.sr)
         hop_length = win_bin // 2
-        self.mel_transformer = torchaudio.transforms.MelSpectrogram(self.sr, n_fft=512, pad=16,
+        self.mel_transformer = torchaudio.transforms.MelSpectrogram(self.sr, n_fft=512, pad=3,
                                                                     win_length=win_bin,
                                                                     hop_length=hop_length, n_mels=64)
         self.amplitudeToDB = torchaudio.transforms.AmplitudeToDB(stype="power")
@@ -71,14 +71,20 @@ class MyAudioDataset(Dataset):
         x = x.masked_fill(mask.type(torch.bool), 0)
         return x
 
-    def aug_mag(self, x: torch.Tensor) -> torch.Tensor:
+    def spec_augment(self, x: torch.Tensor, freq_mask: Union[int, float] = 27,
+                     time_mask: Union[int, float] = 100) -> torch.Tensor:
         """
         音频做augment
+        :param time_mask: 时域上mask，可选int表示mask点，float表示mask比例
+        :param freq_mask: 频域上mask, 可选int表示mask点，float表示mask比例
         :param x: x.shape = (1, 64, T)
         :return: (1, 64, T)
         """
-        freq_mask = 27
-        time_mask = 100
+        if isinstance(freq_mask, float):
+            freq_mask = int(x.shape[1]*freq_mask)
+        if isinstance(time_mask, float):
+            time_mask = int(x.shape[2]*time_mask)
+
         sh = x.shape
         mask = torch.zeros(x.shape).byte()
         w_x = int(self.rand.uniform(0, freq_mask))
@@ -106,7 +112,7 @@ class MyAudioDataset(Dataset):
         x = x.masked_fill(mask.type(torch.bool), 0)
         return x
 
-    def sub_secquence(self, x: torch.Tensor, weight: float=0.1):
+    def sub_secquence(self, x: torch.Tensor, weight: float = 0.1):
         """
         获取子序列
         :param x: (T)
@@ -115,9 +121,8 @@ class MyAudioDataset(Dataset):
         """
         length = x.shape[1]
         target_length = int(length * np.random.uniform(weight, 1))  # 0-0.1随机采样
-        location = int(np.random.uniform(0, length-target_length))
-        return x[: ,location:target_length]
-
+        location = int(np.random.uniform(0, length - target_length))
+        return x[:, location:target_length]
 
     def parse_audio(self, audio_path, mask=False):
         if not os.path.exists(path=audio_path):
@@ -128,13 +133,13 @@ class MyAudioDataset(Dataset):
         # do preemphasis
         y = torch.cat((y[:, 0].unsqueeze(1), y[:, 1:] - 0.97 * y[:, :-1]), dim=1, )
         if mask:
-            y = self.sub_secquence(y, weight=1)
+            y = self.sub_secquence(y, weight=0.98)
         spec = self.mel_transformer(y)
         y = self.amplitudeToDB(spec)
         # F-T mask
         if mask:
             # y = self.sample_aug(y, 0.2)
-            y = self.aug_mag(y)
+            y = self.spec_augment(y, freq_mask=27, time_mask=0.07)
             # y = self.audio_f_mask(y)
             # y = self.audio_t_mask(y)
             # cutout

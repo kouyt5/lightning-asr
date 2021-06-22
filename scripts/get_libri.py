@@ -3,11 +3,11 @@ import fnmatch
 import json
 import logging
 import os
-import subprocess
 import tarfile
 import urllib.request
 from functools import partial
 import multiprocessing as mp
+import soundfile
 import sox
 from tqdm import tqdm
 
@@ -100,8 +100,9 @@ def transform_all_wavs(wav_info: list, target_wav_dir, num_workers=6):
     """
     多进程的处理音频, 返回音频相关的信息
     Inputs:
-        wav_info: 一个tsv文件中的音频信息
-        target_wav_dir: 目标文件夹: .../dev
+        wav_info: dict(),包含所有音频文件信息(path和text), example: [{'path':'path/to/your/wav','text':'hello world'}]
+        target_wav_dir: 存放转化后音频的目标文件夹, example: .../dev
+        num_workers: 处理音频的线程数
     """
     assert os.path.exists(target_wav_dir)
     # 组装音频为source.wav, target.wav 格式
@@ -129,7 +130,8 @@ def transform_wav(source_target_pack, transform, processed_info):
         logging.warning("target wav 存在,已跳过: "+target_wav)
     else:
         transform.build(source_wav, target_wav, return_output=False)
-    duration = float(subprocess.check_output('soxi -D {0}'.format(target_wav), shell=True))
+    data, sr = soundfile.read(target_wav)
+    duration = len(data)/sr
     processed_info.append({"audio_filepath": target_wav, "duration": duration, "text": text})
 
 def main():

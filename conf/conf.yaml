@@ -6,6 +6,7 @@ data:
   train_manifest:
     - "/mnt/workspace3/datasets/libri/LibriSpeech/train_clean_100.json"
     - "/mnt/workspace4/datasets/libri/train-clean-360.json"
+    - "/mnt/workspace3/datasets/libri/LibriSpeech/train-other-500.json"
   val_manifest: "/mnt/workspace3/datasets/libri/LibriSpeech/dev_clean.json"
   test_manifest: "/mnt/workspace2/datasets/libri/test-clean.json"
   labels: [" ","'","a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
