@@ -22,7 +22,7 @@ class SeprationConv(nn.Module):
         self.pointwise_conv = nn.Conv1d(in_ch, out_ch, kernel_size=(1,), stride=(1,),
                                         bias=False)
         self.bn = nn.BatchNorm1d(out_ch, eps=1e-3)
-        # self.ln = nn.LayerNorm(out_ch)
+        # self.ln = nn.GroupNorm(num_groups=1, num_channels=out_ch)
         self.relu = nn.ReLU(inplace=True)
         self.maskcnn = MaskCNN()
         self.dropout = nn.Dropout(p=drop_rate)
@@ -34,7 +34,7 @@ class SeprationConv(nn.Module):
         if self.mask:
             x = self.maskcnn(x, percents)
         x = self.bn(x)
-        # x = self.ln(x.transpose(1, 2)).transpose(1, 2)
+        # x = self.ln(x)
         if not self.last:
             x = self.relu(x)
         x = self.dropout(x)
@@ -144,7 +144,7 @@ class QuartNet12(nn.Module):
         self.block42 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
         self.block43 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
         self.block5 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=75,  mask=mask, drop_rate=drop_rate)
-        # self.block6 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=87, mask=mask, drop_rate=drop_rate)
+        self.block6 = QuartNetBlock(repeat=1, in_ch=512, out_ch=512, k=87, mask=mask, drop_rate=drop_rate)
         self.last_cnn2 = nn.Sequential(
             nn.Conv1d(512, 1024, kernel_size=(1,), stride=(1,), bias=False),
             nn.BatchNorm1d(1024, eps=1e-3),
@@ -160,22 +160,23 @@ class QuartNet12(nn.Module):
         x = self.block1(x, percents)
         x = self.block12(x, percents)
         x = self.block13(x, percents)
-        # x = self.block12(x,percents)
+
         x = self.block2(x, percents)
         x = self.block22(x, percents)
         x = self.block23(x, percents)
-        # x = self.block22(x,percents)
-        length = (x.size(2)*percents).int().cpu()  # B*E*T
+
+        length = (x.size(2) * percents).int().cpu()  # B*E*T
         c, _ = self.context_rnn(x.transpose(1, 2), length)
         x = torch.cat((x, c.transpose(1, 2)), dim=1)
         x = self.block3(x, percents)
         x = self.block32(x, percents)
         x = self.block33(x, percents)
+
         x = self.block4(x, percents)
         x = self.block42(x, percents)
         x = self.block43(x, percents)
         x = self.block5(x, percents)
-        # x = self.block6(x, percents)
+        x = self.block6(x, percents)
         x = self.last_cnn2(x)
         return x
 

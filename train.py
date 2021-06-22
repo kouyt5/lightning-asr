@@ -4,16 +4,13 @@ from exp_loggers import init_loggers
 import torch
 import pytorch_lightning as pl
 from data_module import LibriDataModule
-from torch.utils.data import DataLoader
 from scheduler.cosine_annearing_with_warmup import CosineAnnealingWarmupRestarts
 from scheduler.lr_policy import CosineAnnealing
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from utils import get_mnist_pair
 #from models.QuartNet import MyModel2
 from models.QuartNetContext import MyModel2
-from decoder import GreedyDecoder
 from utils.asr_metrics import WER
 import logging
 from scheduler.novograd import Novograd
@@ -44,17 +41,17 @@ class LightingModule(pl.LightningModule):
         #                                                                    T_mult=2, last_epoch=-1)
 
         novo_optim = Novograd(self.parameters(), lr=self.learning_rate,weight_decay=self.weight_decay, betas=(0.8, 0.5))
-        lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(novo_optim, mode='min',
-                                                                 factor=0.1, patience=10,
-                                                                 threshold=1e-4, threshold_mode='rel',
-                                                                 cooldown=3, min_lr=1e-4)
-        #lr_schulder = CosineAnnealingWarmupRestarts(novo_optim, first_cycle_steps=self.total_epoch*len(self.train_dataloader()),
-         #                                           cycle_mult=2, max_lr=self.learning_rate, min_lr=1e-5,
-        #                                            warmup_steps=2000, gamma=0.5)
+        # lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(novo_optim, mode='min',
+        #                                                          factor=0.1, patience=10,
+        #                                                          threshold=1e-4, threshold_mode='rel',
+        #                                                          cooldown=3, min_lr=1e-4)
+        lr_schulder = CosineAnnealingWarmupRestarts(novo_optim, first_cycle_steps=self.total_epoch*len(self.train_dataloader()),
+                                                   cycle_mult=2, max_lr=self.learning_rate, min_lr=1e-4,
+                                                   warmup_steps=1000, gamma=0.5)
         # lr_schulder = torch.optim.lr_scheduler.ExponentialLR(novo_optim, gamma=0.98)
         pack_schulder = {
             'scheduler': lr_schulder,
-            'interval': 'epoch',
+            'interval': 'step',
             'monitor': 'val_loss',
         }
         return [novo_optim], [pack_schulder]
@@ -172,17 +169,17 @@ class LightingModule(pl.LightningModule):
         pass
 
     def __init__(self, learning_rate=5e-3, weight_decay=1e-4, labels=None,
-                 total_epoch=50, drop_rate: float = 0., mask: bool = False):
+                 total_epoch=50, drop_rate: float = 0., mask: bool = False,
+                 use_cer=False):
         super().__init__()
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.labels = labels
         self.total_epoch = total_epoch
         self.save_hyperparameters('learning_rate', 'weight_decay', 'drop_rate')
-        self.wer = WER(vocabulary=self.labels)
+        self.wer = WER(vocabulary=self.labels, use_cer=use_cer)
         self.loss = torch.nn.CTCLoss(blank=len(self.labels), reduction='none')  # 最后一个作为black
         self.encoder = MyModel2(labels=self.labels, drop_rate=drop_rate, mask=mask)
-        self.decoder = GreedyDecoder(labels=self.labels)
 
 
 @hydra.main(config_path='conf', config_name='conf')
@@ -199,16 +196,22 @@ def main(cfg: DictConfig):
                                                        filename="mnist-{epoch:02d}-{val_wer:.2f}")
     lr_callback = pl.callbacks.LearningRateMonitor(logging_interval='step')
     loggers = init_loggers(cfg=logger_cfg)
+    labels = data_cfg.get('labels')
+    use_cer = False
+    if isinstance(data_cfg.get('labels'), str):
+        labels = [c.strip() for c in open(data_cfg.get('labels'), 'r').readlines()]
+        use_cer = True
     data_module = LibriDataModule(data_cfg.get('train_manifest'), data_cfg.get('val_manifest'),
-                                  labels=data_cfg.get('labels'), train_bs=tran_cfg.get('train_batch_size'),
+                                  labels=labels, train_bs=tran_cfg.get('train_batch_size'),
                                   dev_bs=tran_cfg.get('dev_batch_size'), test_manifest=data_cfg.get('test_manifest'),
                                   num_worker=data_cfg.get('num_worker'))
     model = LightingModule(learning_rate=tran_cfg.get("learning_rate"),
                            weight_decay=tran_cfg.get("weight_decay"),
-                           labels=data_cfg.get('labels'),
+                           labels=labels,
                            total_epoch=tran_cfg.get('total_epoch'),
                            drop_rate=model_cfg.get('drop_rate'),
-                           mask=model_cfg.get('mask'))
+                           mask=model_cfg.get('mask'),
+                           use_cer=use_cer)
     trainer = pl.Trainer(gpus=tran_cfg.get('gpus'),
                             tpu_cores=tran_cfg.get('tpu_core_num'),  # google tpu训练
                             logger=loggers,

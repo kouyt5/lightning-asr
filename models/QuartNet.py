@@ -172,6 +172,57 @@ class QuartNet12(nn.Module):
         x = self.last_cnn2(x)
         return x
 
+class QuartNet105(nn.Module):
+    def __init__(self, drop_rate=0., mask=False):
+        super(QuartNet105, self).__init__()
+        # self.first_cnn = nn.Sequential(
+        #     nn.Conv1d(64, 256, kernel_size=(33,), stride=(2,),
+        #               padding=(16,)),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(inplace=True),
+        # )
+        self.first_cnn = SeprationConv(in_ch=64, out_ch=256, k=33, last=False, mask=mask, stride=2, drop_rate=drop_rate)
+        self.block1 = QuartNetBlock(repeat=5, in_ch=256, out_ch=256, k=33, mask=mask, drop_rate=drop_rate)
+        self.block12 = QuartNetBlock(repeat=5, in_ch=256, out_ch=256, k=33, mask=mask, drop_rate=drop_rate)
+        # self.block12 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=33) # add layer
+        self.block2 = QuartNetBlock(repeat=5, in_ch=256, out_ch=256, k=39, mask=mask, drop_rate=drop_rate)
+        self.block22 = QuartNetBlock(repeat=5, in_ch=256, out_ch=256, k=39, mask=mask, drop_rate=drop_rate)
+        # self.block22 = QuartNetBlock(repeat=5,in_ch=256,out_ch=256,k=39) # add layer
+        self.block3 = QuartNetBlock(repeat=5, in_ch=256, out_ch=512, k=51, mask=mask, drop_rate=drop_rate)
+        self.block32 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=51, mask=mask, drop_rate=drop_rate)
+        self.block4 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
+        self.block42 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=63, mask=mask, drop_rate=drop_rate)
+
+        self.block5 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=75,  mask=mask, drop_rate=drop_rate)
+        self.block52 = QuartNetBlock(repeat=5, in_ch=512, out_ch=512, k=75, mask=mask, drop_rate=drop_rate)
+
+        self.last_cnn2 = nn.Sequential(
+            nn.Conv1d(512, 1024, kernel_size=(1,), stride=(1,), bias=False),
+            nn.BatchNorm1d(1024, eps=1e-3),
+            nn.ReLU(inplace=True),
+            nn.Dropout(drop_rate)
+        )
+
+    def forward(self, input, percents):
+        # x = input.view(input.size(0),input.size(2),input.size(3))
+        x = input.squeeze(dim=1).contiguous()
+        x = self.first_cnn(x, percents)
+        x = self.block1(x, percents)
+        x = self.block12(x, percents)
+        # x = self.block12(x,percents)
+        x = self.block2(x, percents)
+        x = self.block22(x, percents)
+        # x = self.block22(x,percents)
+        x = self.block3(x, percents)
+        x = self.block32(x, percents)
+        x = self.block4(x, percents)
+        x = self.block42(x, percents)
+        x = self.block5(x, percents)
+        x = self.block52(x, percents)
+        # x = self.last_cnn(x, percents)
+        x = self.last_cnn2(x)
+        return x
+
 class BatchLSTM(nn.Module):
     def __init__(self, in_ch=64, out_ch=512,
                  batch_f=True, bidirection=True):
