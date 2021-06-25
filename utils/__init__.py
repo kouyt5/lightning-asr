@@ -1,4 +1,4 @@
-from .minst_utils import get_mnist_pair
+from .asr_metrics import word_error_rate
 
 
-__all__ = ['get_mnist_pair']
+__all__ = ['word_error_rate']
