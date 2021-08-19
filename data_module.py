@@ -16,16 +16,9 @@ import numpy as np
 class MyAudioDataset(Dataset):
     def __init__(self, manifest_path: list, labels, max_duration=16, mask=False, win_len=0.02, sr=16000):
         torchaudio.set_audio_backend("sox_io")
-        self.mask = mask
-        self.win_len = win_len
-        self.sr = sr
         self.datasets = []
         self.labels = labels
-        # cutout
-        self.rect_masks = 5
-        self.rect_freq = 50
-        self.rect_time = 120
-        self.rand = random.Random()
+        self.mask = mask
         for item in manifest_path:
             with open(item, encoding='utf-8') as f:
                 for line in f.readlines():
@@ -35,6 +28,34 @@ class MyAudioDataset(Dataset):
                     self.datasets.append(data)
         self.index2char = dict([(i, labels[i]) for i in range(len(labels))])
         self.char2index = dict([(labels[i], i) for i in range(len(labels))])
+        self.audio_parser = AudioParser(win_len=win_len, sr=sr)
+
+    def __getitem__(self, index):
+        data = self.datasets[index]
+        text2id = [self.char2index[char] for char in data['text']]
+        return self.audio_parser.parse_audio(data["audio_filepath"], mask=self.mask), text2id, data['audio_filepath']
+    
+    def id2txt(self, id_list):
+        """
+        根据id获取对应的文本
+        :params id_list id的列表[1,3,...]
+        """
+        for id in id_list:
+            if id >= len(self.index2char):
+                raise Exception("index out of the lengths请检查id的大小范围")
+        return ''.join([self.index2char[id] for id in id_list])
+
+    def __len__(self):
+        return len(self.datasets)
+
+class AudioParser:
+    def __init__(self, win_len=0.02, sr=16000):
+        self.win_len = win_len
+        self.sr = sr
+        self.rect_masks = 5
+        self.rect_freq = 50
+        self.rect_time = 120
+        self.rand = random.Random()
         win_bin = int(self.win_len * self.sr)
         hop_length = win_bin // 2
         self.mel_transformer = torchaudio.transforms.MelSpectrogram(self.sr, n_fft=512, pad=32,
@@ -43,11 +64,6 @@ class MyAudioDataset(Dataset):
         self.amplitudeToDB = torchaudio.transforms.AmplitudeToDB(stype="power")
         self.audio_f_mask = torchaudio.transforms.FrequencyMasking(freq_mask_param=27)
         self.audio_t_mask = torchaudio.transforms.TimeMasking(time_mask_param=100)
-
-    def __getitem__(self, index):
-        data = self.datasets[index]
-        text2id = [self.char2index[char] for char in data['text']]
-        return self.parse_audio(data["audio_filepath"], mask=self.mask), text2id, data['audio_filepath']
 
     def cutout(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -125,9 +141,9 @@ class MyAudioDataset(Dataset):
         return x[:, location:target_length]
 
     def parse_audio(self, audio_path, mask=False):
-        if not os.path.exists(path=audio_path):
-            raise ("音频路径不存在 " + audio_path)
-        y, sr = torchaudio.backend.sox_backend.load(audio_path)
+        if isinstance(audio_path, str) and not os.path.exists(path=audio_path):
+            raise Exception("音频路径不存在 " + audio_path)
+        y, sr = torchaudio.load(audio_path)
         # # dither
         y += 1e-5 * torch.randn_like(y)
         # do preemphasis
@@ -149,19 +165,6 @@ class MyAudioDataset(Dataset):
         y = torch.div((y - mean), std)
 
         return y  # (1,64,T)
-
-    def id2txt(self, id_list):
-        """
-        根据id获取对应的文本
-        :params id_list id的列表[1,3,...]
-        """
-        for id in id_list:
-            if id >= len(self.index2char):
-                raise Exception("index out of the lengths请检查id的大小范围")
-        return ''.join([self.index2char[id] for id in id_list])
-
-    def __len__(self):
-        return len(self.datasets)
 
 
 class LibriDataModule(pl.LightningDataModule):
