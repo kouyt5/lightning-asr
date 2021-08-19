@@ -75,6 +75,9 @@ class QuartNetBlock(nn.Module):
         for m in self.seq:
             x = m(x, percents)
         res_out = self.reside(start)
+        # # 加入残差
+        # if start.size(1)==res_out.size(1):
+        #     x = x + start
         x = x + res_out
         x = self.last_relu(x)
         return x

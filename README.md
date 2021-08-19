@@ -29,7 +29,7 @@ python scripts/get_aishell.py --data_root=/path/to/yours/aishell/
 ### 训练
 ```shell
 $ python train.py data.train_manifest=/path/to/you/train.json data.val_manifest=/path/to/you/val.json \
-  loggers.comet.COMET_API_KEY=your-comet-key loggers.comet.experiment_name=asr13×1 \
+  loggers.comet.COMET_API_KEY=your-comet-key model_name=asr13×1 \
   loggers.comet.workspace=your-name
 ```
 注意，这里的comet key需要在comet.ml网站上申请。用于在线查看实验，comet workspace为你的用户名
