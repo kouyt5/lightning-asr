@@ -19,14 +19,16 @@ logger = logging.getLogger(__name__)
 
 class LightingModule(pl.LightningModule):
 
-    def forward(self, x):
+    def forward(self, inputs, percentage):
         """
         用于推理阶段
 
-        :param x: 传入参数 N*1*64×L
+        :param 
+            inputs: 传入参数 N*1*64×L
+            percent: 比例
         :return: lists 预测的原始值
         """
-        return self.encoder(x)  # N*L'*C
+        return self.encoder(inputs, percentage)  # N*L'*C
 
     def configure_optimizers(self):
         """
@@ -41,20 +43,20 @@ class LightingModule(pl.LightningModule):
         #                                                                    T_mult=2, last_epoch=-1)
 
         novo_optim = Novograd(self.parameters(), lr=self.learning_rate,weight_decay=self.weight_decay, betas=(0.8, 0.5))
-        # lr_schulder = torch.optim.lr_scheduler.ReduceLROnPlateau(novo_optim, mode='min',
+        # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(novo_optim, mode='min',
         #                                                          factor=0.1, patience=10,
         #                                                          threshold=1e-4, threshold_mode='rel',
         #                                                          cooldown=3, min_lr=1e-4)
-        lr_schulder = CosineAnnealingWarmupRestarts(novo_optim, first_cycle_steps=self.total_epoch*len(self.train_dataloader()),
+        lr_scheduler = CosineAnnealingWarmupRestarts(novo_optim, first_cycle_steps=self.total_epoch*len(self.train_dataloader()),
                                                    cycle_mult=2, max_lr=self.learning_rate, min_lr=1e-4,
                                                    warmup_steps=1000, gamma=0.5)
-        # lr_schulder = torch.optim.lr_scheduler.ExponentialLR(novo_optim, gamma=0.98)
-        pack_schulder = {
-            'scheduler': lr_schulder,
+        # lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(novo_optim, gamma=0.98)
+        pack_scheduer = {
+            'scheduler': lr_scheduler,
             'interval': 'step',
             'monitor': 'val_loss',
         }
-        return [novo_optim], [pack_schulder]
+        return [novo_optim], [pack_scheduer]
 
     def training_step(self, batch, batch_idx):
         """
@@ -64,11 +66,11 @@ class LightingModule(pl.LightningModule):
         :return: loss: torch.Tensor, 或者一个字典, 但必须包含'loss' key
         """
         input = batch[0]
-        percents = batch[2]
+        percentage = batch[2]
         trans = batch[1]
         trans_lengths = batch[3]
-        out = self.encoder(input, percents)
-        t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
+        out = self.encoder(input, percentage)
+        t_lengths = torch.mul(out.size(1), percentage).int()  # 输出实际长度
         loss = torch.mean(self.loss(out.transpose(0, 1),
                          trans, t_lengths, trans_lengths))
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -82,11 +84,11 @@ class LightingModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         input = batch[0]
-        percents = batch[2]
+        percentage = batch[2]
         trans = batch[1]
         trans_lengths = batch[3]
-        out = self.encoder(input, percents)
-        t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
+        out = self.encoder(input, percentage)
+        t_lengths = torch.mul(out.size(1), percentage).int()  # 输出实际长度
         loss = torch.mean(self.loss(out.transpose(0, 1),
                          trans, t_lengths, trans_lengths))
         wer = self.wer(out.argmax(dim=-1, keepdim=False), trans, trans_lengths)
@@ -108,11 +110,11 @@ class LightingModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         input = batch[0]
-        percents = batch[2]
+        percentage = batch[2]
         trans = batch[1]
         trans_lengths = batch[3]
-        out = self.encoder(input, percents)
-        t_lengths = torch.mul(out.size(1), percents).int()  # 输出实际长度
+        out = self.encoder(input, percentage)
+        t_lengths = torch.mul(out.size(1), percentage).int()  # 输出实际长度
         loss = torch.mean(self.loss(out.transpose(0, 1),
                          trans, t_lengths, trans_lengths))
         return_val = {
@@ -176,7 +178,7 @@ class LightingModule(pl.LightningModule):
         self.weight_decay = weight_decay
         self.labels = labels
         self.total_epoch = total_epoch
-        self.save_hyperparameters('learning_rate', 'weight_decay', 'drop_rate')
+        self.save_hyperparameters()
         self.wer = WER(vocabulary=self.labels, use_cer=use_cer)
         self.loss = torch.nn.CTCLoss(blank=len(self.labels), reduction='none')  # 最后一个作为black
         self.encoder = MyModel2(labels=self.labels, drop_rate=drop_rate, mask=mask)
