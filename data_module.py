@@ -37,7 +37,7 @@ class MyAudioDataset(Dataset):
         self.char2index = dict([(labels[i], i) for i in range(len(labels))])
         win_bin = int(self.win_len * self.sr)
         hop_length = win_bin // 2
-        self.mel_transformer = torchaudio.transforms.MelSpectrogram(self.sr, n_fft=512, pad=3,
+        self.mel_transformer = torchaudio.transforms.MelSpectrogram(self.sr, n_fft=512, pad=32,
                                                                     win_length=win_bin,
                                                                     hop_length=hop_length, n_mels=64)
         self.amplitudeToDB = torchaudio.transforms.AmplitudeToDB(stype="power")
