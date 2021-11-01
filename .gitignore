@@ -141,3 +141,4 @@ outputs
 .idea
 tmp
 .vscode
+ckpt/

@@ -1,0 +1,54 @@
+model_name: &model_name asr12x1
+defaults:
+  - log: hypra_logger # hypra集成的python logger配置
+data:
+  path: "/home/chenc/PycharmProjects/pytorch-lighting-template"
+  train_manifest:
+    - "/mnt/workspace3/datasets/libri/LibriSpeech/train_clean_100.json"
+    - "/mnt/workspace4/datasets/libri/train-clean-360.json"
+    - "/mnt/workspace3/datasets/libri/LibriSpeech/train-other-500.json"
+  val_manifest: "/mnt/workspace3/datasets/libri/LibriSpeech/dev_clean.json"
+  test_manifest: "/mnt/workspace2/datasets/libri/test-clean.json"
+  pesudo_manifest: null
+  labels: [" ","'","a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+           "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
+  num_worker: 0
+
+train:
+  total_epoch: 100
+  checkpoint: null # None或模型文件的位置
+  gpus: 1
+  tpu_core_num: null
+  train_batch_size: 32
+  dev_batch_size: 32
+  learning_rate: 1e-2
+  weight_decay: 1e-3
+  amp_level: "O1"
+  precision: 16
+  amp_backend: native
+  accelerator: ddp
+  num_nodes: 1
+  check_val_every_n_epoch: 1
+
+ssl:
+  on_the_flying: false
+  extract_feature_folder: /data/chenc/aishell/ssl/wav2vec2
+  model_path: /data/chenc/asr/lightning-asr/ssl/ckpt
+  retrain: false
+
+model:
+  drop_rate: 0.
+  mask: true
+
+loggers:
+  comet:
+    COMET_API_KEY: null # comet key,需要去comet申请
+    workspace: 'kouyt5'  # comet用户名
+    project_name: 'asr' # 项目名称
+    experiment_prefix_name: ''
+    experiment_fixed_name: >-
+      ${model_name}-lr${train.learning_rate}-wc${train.weight_decay}-bs${train.train_batch_size}-gpus${train.gpus}-dr${model.drop_rate}-mask_${model.mask}
+    experiment_key: null
+  tensorboard:
+    name: "quartznet12*1"
+    save_dir: "tensorboard_log"
