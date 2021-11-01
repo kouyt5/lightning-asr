@@ -38,4 +38,4 @@ job_logging:
     - console
   disable_existing_loggers: false
 run:
-  dir: outputs/${model_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  dir: outputs/${model_name}/${now:%Y-%m-%d}/${now:%H-%M}-${loggers.comet.experiment_fixed_name}

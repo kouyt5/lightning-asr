@@ -114,9 +114,41 @@ class WER(Metric):
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
-    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+    # def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+    #     """
+    #     Decodes a sequence of labels to words
+    #     """
+    #     hypotheses = []
+    #     # Drop predictions to CPU
+    #     prediction_cpu_tensor = predictions.long().cpu()
+    #     # iterate over batch
+    #     for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
+    #         prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
+    #         # CTC decoding procedure
+    #         decoded_prediction = []
+    #         previous = self.blank_id
+    #         for p in prediction:
+    #             if (p != previous or previous == self.blank_id) and p != self.blank_id:
+    #                 decoded_prediction.append(p)
+    #             previous = p
+    #         hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction])
+    #         hypotheses.append(hypothesis)
+    #     return hypotheses
+
+    def ctc_decoder_predictions_tensor(
+        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None) -> List[str]:
         """
         Decodes a sequence of labels to words
+
+        Args:
+            predictions: A torch.Tensor of shape [Batch, Time] of integer indices that correspond
+                to the index of some character in the label set.
+            predictions_len: Optional tensor of length `Batch` which contains the integer lengths
+                of the sequence in the padded `predictions` tensor.
+
+        Returns:
+            Either a list of str which represent the CTC decoded strings per sample,
+            or a list of Hypothesis objects containing additional information.
         """
         hypotheses = []
         # Drop predictions to CPU
@@ -124,6 +156,8 @@ class WER(Metric):
         # iterate over batch
         for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
             prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
+            if predictions_len is not None:
+                prediction = prediction[: predictions_len[ind]]
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
@@ -132,6 +166,7 @@ class WER(Metric):
                     decoded_prediction.append(p)
                 previous = p
             hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction])
+
             hypotheses.append(hypothesis)
         return hypotheses
 
@@ -149,7 +184,7 @@ class WER(Metric):
                 references.append(reference)
         return references
 
-    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor):
+    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, t_lengths: torch.Tensor=None):
         words = 0.0
         scores = 0.0
         references = []
@@ -164,7 +199,7 @@ class WER(Metric):
                 reference = ''.join([self.labels_map[c] for c in target])
                 references.append(reference)
             if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions)
+                hypotheses = self.ctc_decoder_predictions_tensor(predictions, t_lengths)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
 

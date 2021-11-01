@@ -14,18 +14,25 @@ import numpy as np
 
 
 class MyAudioDataset(Dataset):
-    def __init__(self, manifest_path: list, labels, max_duration=16, mask=False, win_len=0.02, sr=16000):
+    def __init__(self, manifest_path: list, labels, max_duration=16.7, mask=False, win_len=0.02, sr=16000):
         torchaudio.set_audio_backend("sox_io")
         self.datasets = []
         self.labels = labels
         self.mask = mask
         for item in manifest_path:
+            total_count = 0
+            total_duration = 0.
             with open(item, encoding='utf-8') as f:
                 for line in f.readlines():
                     data = json.loads(line, encoding='utf-8')
                     if data['duration'] > max_duration:
+                        total_count += 1
+                        total_duration += data['duration']
                         continue
                     self.datasets.append(data)
+                total_duration = total_duration/60
+                logging.info("过滤音频条数:{:d}条".format(total_count))
+                logging.info("过滤音频时长:{:.2f}分钟".format(total_duration))
         self.index2char = dict([(i, labels[i]) for i in range(len(labels))])
         self.char2index = dict([(labels[i], i) for i in range(len(labels))])
         self.audio_parser = AudioParser(win_len=win_len, sr=sr)
@@ -171,7 +178,8 @@ class LibriDataModule(pl.LightningDataModule):
     def __init__(self, train_manifest: Union[ListConfig, str],
                  dev_manifest: Union[ListConfig, str],
                  test_manifest: Union[ListConfig, str],
-                 labels: list, train_bs=16, dev_bs=16, num_worker=0):
+                 labels: list, train_bs=16, dev_bs=16, num_worker=0, 
+                 train_max_duration=16.7, dev_max_duration=40):
         super().__init__()
         self.train_manifest = list(train_manifest) if isinstance(train_manifest, ListConfig) else [train_manifest]
         self.dev_manifest = list(dev_manifest) if isinstance(dev_manifest, ListConfig) else [dev_manifest]
@@ -180,15 +188,17 @@ class LibriDataModule(pl.LightningDataModule):
         self.dev_bs = dev_bs
         self.labels = labels
         self.num_worker = num_worker
+        self.train_max_duration = train_max_duration
+        self.dev_max_duration = dev_max_duration
 
     def setup(self, stage=None):
-        self.train_datasets = MyAudioDataset(self.train_manifest, self.labels, mask=True)
-        self.dev_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=40)
-        self.test_datasets = MyAudioDataset(self.test_manifest, self.labels, max_duration=40)
+        self.train_datasets = MyAudioDataset(self.train_manifest, self.labels, mask=True, max_duration=self.train_max_duration)
+        self.dev_datasets = MyAudioDataset(self.dev_manifest, self.labels, max_duration=self.dev_max_duration)
+        self.test_datasets = MyAudioDataset(self.test_manifest, self.labels, max_duration=self.dev_max_duration)
 
     def train_dataloader(self):
         return DataLoader(self.train_datasets, batch_size=self.train_bs, num_workers=self.num_worker,
-                          pin_memory=True, collate_fn=self._collate_fn, drop_last=True)
+                          pin_memory=True, collate_fn=self._collate_fn, drop_last=True, shuffle=True)
 
     def val_dataloader(self):
         return DataLoader(self.dev_datasets, batch_size=self.dev_bs, num_workers=self.num_worker,

@@ -1,13 +1,30 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-
+import sys, os
+sys.path.append(os.path.abspath('.'))
 from activate_fun.Swish import Swish, Mish
 
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1)
+        return x * y.expand_as(x)
 
 class SeprationConv(nn.Module):
     def __init__(self, in_ch, out_ch, k=33, last=False, mask=True, dilation=1,
-                 stride=1, drop_rate=0.1):
+                 stride=1, drop_rate=0.1, se=False):
         super(SeprationConv, self).__init__()
         self.last = last
         self.mask = mask
@@ -26,6 +43,7 @@ class SeprationConv(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.maskcnn = MaskCNN()
         self.dropout = nn.Dropout(p=drop_rate)
+        self.se = SELayer(out_ch, reduction=8)
 
     def forward(self, input, percents):
         x = self.depthwise_conv(input)
@@ -34,7 +52,7 @@ class SeprationConv(nn.Module):
         if self.mask:
             x = self.maskcnn(x, percents)
         x = self.bn(x)
-        # x = self.ln(x)
+        x = self.se(x)
         if not self.last:
             x = self.relu(x)
         x = self.dropout(x)
@@ -260,7 +278,7 @@ class MaskCNN(nn.Module):
 
 
 if __name__ == "__main__":
-    input = torch.rand([8, 1, 64, 1024], dtype=torch.float32)
+    input = torch.rand([8, 1, 64, 756], dtype=torch.float32)
     percents = torch.rand([8], dtype=torch.float32)
     percents = percents / torch.max(percents)
     model = MyModel2([" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",

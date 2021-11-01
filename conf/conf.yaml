@@ -4,14 +4,16 @@ defaults:
 data:
   path: "/home/chenc/PycharmProjects/pytorch-lighting-template"
   train_manifest:
-    - "/mnt/workspace3/datasets/libri/LibriSpeech/train_clean_100.json"
-    - "/mnt/workspace4/datasets/libri/train-clean-360.json"
-    - "/mnt/workspace3/datasets/libri/LibriSpeech/train-other-500.json"
-  val_manifest: "/mnt/workspace3/datasets/libri/LibriSpeech/dev_clean.json"
-  test_manifest: "/mnt/workspace2/datasets/libri/test-clean.json"
+    - "/data/chenc/libri/train-clean-100.json"
+    - "/data/chenc/libri/train-clean-360.json"
+    - "/data/chenc/libri/train-other-500.json"
+  val_manifest: "/data/chenc/libri/dev-clean.json"
+  test_manifest: "/data/chenc/libri/dev-clean.json"
   labels: [" ","'","a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
   num_worker: 6
+  train_max_duration: 16.7
+  dev_max_duration: 40
 
 train:
   total_epoch: 100
@@ -27,6 +29,7 @@ train:
   amp_backend: native
   accelerator: ddp
   num_nodes: 1
+  check_val_every_n_epoch: 1
 
 model:
   drop_rate: 0.
